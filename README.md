@@ -4,7 +4,7 @@
 # cvxpylayers
 
 cvxpylayers is a Python library for constructing differentiable convex
-optimization layers in PyTorch and TensorFlow. A convex optimization layer
+optimization layers in PyTorch and TensorFlow using CVXPY. A convex optimization layer
 solves a parametrized convex optimization problem in the forward pass to
 produce a solution. It computes the derivative of the solution with respect to
 the parameters in the backward pass.
