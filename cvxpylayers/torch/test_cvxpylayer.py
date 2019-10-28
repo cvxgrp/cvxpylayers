@@ -115,7 +115,7 @@ class TestCvxpyLayer(unittest.TestCase):
 
         X_tch = torch.from_numpy(X_np)
         X_tch.requires_grad_(True)
-        lam_tch = 0.1 * torch.ones(1, requires_grad=True)
+        lam_tch = 0.1 * torch.ones(1, requires_grad=True, dtype=torch.double)
 
         a = cp.Variable((n, 1))
         X = cp.Parameter((N, n))
