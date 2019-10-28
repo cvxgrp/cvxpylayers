@@ -7,7 +7,7 @@ with open("README.md", "r") as fh:
 
 setup(
     name="cvxpylayers",
-    version="0.1.0",
+    version="0.1.1",
     description="Differentiable convex optimization layers",
     long_description=long_description,
     long_description_content_type="text/markdown",
@@ -15,7 +15,7 @@ setup(
     install_requires=[
         "numpy >= 1.15",
         "scipy >= 1.1.0",
-        "diffcp >= 1.0.11",
+        "diffcp >= 1.0.12",
         "cvxpy >= 1.1.0a0"],
     license="Apache License, Version 2.0",
     url="https://github.com/cvxgrp/cvxpylayers",
