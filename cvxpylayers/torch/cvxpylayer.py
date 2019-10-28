@@ -96,8 +96,8 @@ class CvxpyLayer(torch.nn.Module):
           params: a sequence of torch Tensors; the n-th Tensor specifies
                   the value for the n-th CVXPY Parameter. These Tensors
                   can be batched: if a Tensor has 3 dimensions, then its
-                  first dimension is interpreted as the batch size. These Tensors
-                  must all have the same dtype and device.
+                  first dimension is interpreted as the batch size. These
+                  Tensors must all have the same dtype and device.
           solver_args: a dict of optional arguments, to send to `diffcp`. Keys
                        should be the names of keyword arguments.
 
