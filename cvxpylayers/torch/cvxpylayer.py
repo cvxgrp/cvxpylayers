@@ -73,7 +73,7 @@ class CvxpyLayer(torch.nn.Module):
         super(CvxpyLayer, self).__init__()
 
         assert set(problem.parameters()) == set(parameters), \
-          "The layer's parameters must exactly match problem.parameters"
+            "The layer's parameters must exactly match problem.parameters"
         assert set(variables).issubset(set(problem.variables())), \
             "Argument variables must be a subset of problem.variables"
         assert hasattr(problem, "get_problem_data"), \
@@ -96,7 +96,8 @@ class CvxpyLayer(torch.nn.Module):
           params: a sequence of torch Tensors; the n-th Tensor specifies
                   the value for the n-th CVXPY Parameter. These Tensors
                   can be batched: if a Tensor has 3 dimensions, then its
-                  first dimension is interpreted as the batch size.
+                  first dimension is interpreted as the batch size. These
+                  Tensors must all have the same dtype and device.
           solver_args: a dict of optional arguments, to send to `diffcp`. Keys
                        should be the names of keyword arguments.
 
@@ -149,6 +150,23 @@ def _CvxpyLayerFn(
             ctx.dtype = params[0].dtype
             ctx.device = params[0].device
             ctx.batch = len(param_0_shape) > len(param_order[0].shape)
+
+            # check dtype, device of params
+            for i, p in enumerate(params):
+                if p.dtype != ctx.dtype:
+                    raise RuntimeError(
+                        "Two or more parameters have different dtypes. "
+                        "Expected parameter %d to have dtype %s but "
+                        "got dtype %s." %
+                        (i, str(ctx.dtype), str(p.dtype))
+                    )
+                if p.device != ctx.device:
+                    raise RuntimeError(
+                        "Two or more parameters are on different devices. "
+                        "Expected parameter %d to be on device %s "
+                        "but got device %s." %
+                        (i, str(ctx.device), str(p.device))
+                    )
 
             # check shapes of params
             if ctx.batch:
