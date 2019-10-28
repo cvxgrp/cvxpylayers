@@ -253,7 +253,7 @@ class TestCvxpyLayer(unittest.TestCase):
         lam2 = cp.Parameter(1, nonneg=True)
         objective = lam * cp.norm(x, 1) + lam2 * cp.sum_squares(x)
         prob = cp.Problem(cp.Minimize(objective))
-        with self.assertRaisesRegex(ValueError, 'Every parameter.*'):
+        with self.assertRaisesRegex(ValueError, "The layer's parameters.*"):
             CvxpyLayer(prob, [lam], [x])
 
     def test_non_dpp(self):
