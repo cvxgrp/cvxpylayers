@@ -70,8 +70,8 @@ class CvxpyLayer(object):
         if not problem.is_dpp():
             raise ValueError('Problem must be DPP.')
         if set(parameters) != set(problem.parameters()):
-            raise ValueError('Every parameter must be passed in argument '
-                             '`parameters`')
+            raise ValueError("The layer's parameters must exactly match "
+                             "problem.parameters")
         if not set(variables).issubset(set(problem.variables())):
             raise ValueError('Argument `variables` must be a subset of '
                              '`problem.variables()`')

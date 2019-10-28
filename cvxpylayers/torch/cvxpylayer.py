@@ -73,7 +73,7 @@ class CvxpyLayer(torch.nn.Module):
         super(CvxpyLayer, self).__init__()
 
         assert set(problem.parameters()) == set(parameters), \
-            "Every parameter must be passed to argument parameters"
+          "The layer's parameters must exactly match problem.parameters"
         assert set(variables).issubset(set(problem.variables())), \
             "Argument variables must be a subset of problem.variables"
         assert hasattr(problem, "get_problem_data"), \
