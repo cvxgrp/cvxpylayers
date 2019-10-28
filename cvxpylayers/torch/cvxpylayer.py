@@ -152,7 +152,7 @@ def _CvxpyLayerFn(
 
             # check dtype, device of params
             for i, p in enumerate(params):
-                if p.dtype != ctx.dtype or p.device != ctx.device:
+                if p.dtype != ctx.dtype:
                     raise RuntimeError(
                         "Two or more parameters have different dtypes. "
                         "Expected parameter %d to have dtype %s but "
