@@ -73,7 +73,7 @@ class CvxpyLayer(torch.nn.Module):
         super(CvxpyLayer, self).__init__()
 
         assert set(problem.parameters()) == set(parameters), \
-          "The layer's parameters must exactly match problem.parameters"
+            "The layer's parameters must exactly match problem.parameters"
         assert set(variables).issubset(set(problem.variables())), \
             "Argument variables must be a subset of problem.variables"
         assert hasattr(problem, "get_problem_data"), \
@@ -149,6 +149,23 @@ def _CvxpyLayerFn(
             ctx.dtype = params[0].dtype
             ctx.device = params[0].device
             ctx.batch = len(param_0_shape) > len(param_order[0].shape)
+
+            # check dtype, device of params
+            for i, p in enumerate(params):
+                if p.dtype != ctx.dtype or p.device != ctx.device:
+                    raise RuntimeError(
+                        "Two or more parameters have different dtypes. "
+                        "Expected parameter %d to have dtype %s but "
+                        "got dtype %s." %
+                        (i, str(ctx.dtype), str(p.dtype))
+                    )
+                if p.device != ctx.device:
+                    raise RuntimeError(
+                        "Two or more parameters are on different devices. "
+                        "Expected parameter %d to be on device %s "
+                        "but got device %s." %
+                        (i, str(ctx.device), str(p.device))
+                    )
 
             # check shapes of params
             if ctx.batch:
