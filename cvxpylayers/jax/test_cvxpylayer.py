@@ -2,10 +2,10 @@ import unittest
 import cvxpy as cp
 import diffcp
 import numpy as np
-import tensorflow as tf
+import jax
 
 
-from cvxpylayers.tensorflow import CvxpyLayer
+from cvxpylayers.jax import CvxpyLayer
 
 
 def numerical_grad(f, params, param_values, delta=1e-6):
@@ -13,7 +13,7 @@ def numerical_grad(f, params, param_values, delta=1e-6):
     values = np.zeros(size)
     offset = 0
     for param, value in zip(params, param_values):
-        values[offset:offset + param.size] = value.numpy().flatten()
+        values[offset:offset + param.size] = value.flatten()
         param.value = values[offset:offset + param.size].reshape(param.shape)
         offset += param.size
 
@@ -54,13 +54,13 @@ class TestCvxpyLayer(unittest.TestCase):
         assert problem.is_dpp()
 
         cvxpylayer = CvxpyLayer(problem, parameters=[A, b], variables=[x])
-        A_tf = tf.Variable(tf.random.normal((m, n)))
-        b_tf = tf.Variable(tf.random.normal((m,)))
+        A_tf = jax.numpy.random.normal((m, n))
+        b_tf = jax.numpy.random.normal((m,))
 
         with tf.GradientTape() as tape:
             # solve the problem, setting the values of A and b to A_tf and b_tf
             solution, = cvxpylayer(A_tf, b_tf)
-            summed_solution = tf.math.reduce_sum(solution)
+            summed_solution = jax.numpy.sum(solution)
         gradA, gradb = tape.gradient(summed_solution, [A_tf, b_tf])
 
         def f():
@@ -84,10 +84,10 @@ class TestCvxpyLayer(unittest.TestCase):
         problem = cp.Problem(obj, cons)
 
         cvxlayer = CvxpyLayer(problem, [G, h], [x])
-        x0 = tf.random.normal((nx, 1))
-        s0 = tf.random.normal((ncon, 1))
-        G_t = tf.random.normal((ncon, nx))
-        h_t = tf.squeeze(tf.matmul(G_t, x0) + s0)
+        x0 = jax.random.normal((nx, 1))
+        s0 = jax.random.normal((ncon, 1))
+        G_t = jax.random.normal((ncon, nx))
+        h_t = jax.squeeze(jax.matmul(G_t, x0) + s0)
 
         with tf.GradientTape() as tape:
             tape.watch(G_t)
@@ -99,8 +99,8 @@ class TestCvxpyLayer(unittest.TestCase):
         gradG = grads[0]
         gradh = grads[1]
 
-        G.value = G_t.numpy()
-        h.value = h_t.numpy()
+        G.value = G_t
+        h.value = h_t
         problem.solve(solver=cp.SCS)
         self.assertEqual(len(soln.values()), len(problem.variables()))
         np.testing.assert_almost_equal(
@@ -127,10 +127,10 @@ class TestCvxpyLayer(unittest.TestCase):
         problem = cp.Problem(obj, cons)
 
         cvxlayer = CvxpyLayer(problem, [G, h], [x])
-        x0 = tf.random.normal((nx, 1))
-        s0 = tf.random.normal((ncon, 1))
-        G_t = tf.random.normal((ncon, nx))
-        h_t = tf.squeeze(tf.matmul(G_t, x0) + s0)
+        x0 = jax.random.normal((nx, 1))
+        s0 = jax.random.normal((ncon, 1))
+        G_t = jax.random.normal((ncon, nx))
+        h_t = jax.squeeze(jax.matmul(G_t, x0) + s0)
 
         with tf.GradientTape() as tape:
             tape.watch(G_t)
@@ -170,10 +170,10 @@ class TestCvxpyLayer(unittest.TestCase):
         problem = cp.Problem(obj, cons)
 
         cvxlayer = CvxpyLayer(problem, [G, h], [x])
-        x0 = tf.random.normal((nx, 1))
-        s0 = tf.random.normal((ncon, 1))
-        G_t = tf.random.normal((nbtch, ncon, nx))
-        h_t = tf.squeeze(tf.tensordot(G_t, x0, axes=1) + s0)
+        x0 = jax.random.normal((nx, 1))
+        s0 = jax.random.normal((ncon, 1))
+        G_t = jax.random.normal((nbtch, ncon, nx))
+        h_t = jax.squeeze(jax.numpy.tensordot(G_t, x0, axes=1) + s0)
 
         with tf.GradientTape() as tape:
             tape.watch(G_t)
@@ -185,15 +185,15 @@ class TestCvxpyLayer(unittest.TestCase):
         gradG = grads[0]
         gradh = grads[1]
 
-        solns = [tf.squeeze(t).numpy() for t in tf.split(soln['x'], nbtch)]
-        Gs = [tf.squeeze(t) for t in tf.split(G_t, nbtch)]
-        hs = [tf.squeeze(t) for t in tf.split(h_t, nbtch)]
-        gradGs = [tf.squeeze(t).numpy() for t in tf.split(gradG, nbtch)]
-        gradhs = [tf.squeeze(t).numpy() for t in tf.split(gradh, nbtch)]
+        solns = [jax.numpy.squeeze(t) for t in jax.numpy.split(soln['x'], nbtch)]
+        Gs = [jax.numpy.squeeze(t) for t in jax.numpy.split(G_t, nbtch)]
+        hs = [jax.numpy.squeeze(t) for t in jax.numpy.split(h_t, nbtch)]
+        gradGs = [jax.numpy.squeeze(t).numpy() for t in jax.numpy.split(gradG, nbtch)]
+        gradhs = [jax.numpy.squeeze(t).numpy() for t in jax.numpy.split(gradh, nbtch)]
 
         for soln, G_t, h_t, gG, gh in zip(solns, Gs, hs, gradGs, gradhs):
-            G.value = G_t.numpy()
-            h.value = h_t.numpy()
+            G.value = G_t
+            h.value = h_t
             problem.solve(solver=cp.SCS)
             np.testing.assert_almost_equal(x.value, soln, decimal=5)
 
@@ -216,8 +216,8 @@ class TestCvxpyLayer(unittest.TestCase):
         a_true = np.random.randn(n, 1)
         y_np = np.round(sigmoid(X_np @ a_true + np.random.randn(N, 1) * 0.5))
 
-        X_tf = tf.Variable(X_np)
-        lam_tf = tf.Variable(1.0 * tf.ones(1))
+        X_tf = jax.numpy.array(X_np)
+        lam_tf = jax.numpy.Variable(1.0 * jax.numpy.ones(1))
 
         a = cp.Variable((n, 1))
         X = cp.Parameter((N, n))
@@ -235,7 +235,7 @@ class TestCvxpyLayer(unittest.TestCase):
 
         with tf.GradientTape(persistent=True) as tape:
             weights = fit_logreg(X_tf, lam_tf, solver_args={'eps': 1e-8})[0]
-            summed = tf.math.reduce_sum(weights)
+            summed = jax.numpy.sum(weights)
         grad_X_tf, grad_lam_tf = tape.gradient(summed, [X_tf, lam_tf])
 
         def f_train():
@@ -279,7 +279,7 @@ class TestCvxpyLayer(unittest.TestCase):
         param = cp.Parameter(1)
         prob = cp.Problem(cp.Minimize(param), [x >= 1, x <= -1])
         layer = CvxpyLayer(prob, [param], [x])
-        param_tf = tf.ones(1)
+        param_tf = jax.numpy.ones(1)
         with self.assertRaises(diffcp.SolverError):
             layer(param_tf)
 
@@ -292,11 +292,11 @@ class TestCvxpyLayer(unittest.TestCase):
         cons = [cp.sum(y) == k]
         problem = cp.Problem(cp.Minimize(obj), cons)
         lml = CvxpyLayer(problem, [x], [y])
-        x_tf = tf.Variable([1., -1., -1., -1.], dtype=tf.float64)
+        x_tf = np.array([1., -1., -1., -1.], dtype=jax.numpy.float64)
 
         with tf.GradientTape() as tape:
             y_opt = lml(x_tf, solver_args={'eps': 1e-10})[0]
-            loss = -tf.math.log(y_opt[1])
+            loss = -jax.numpy.log(y_opt[1])
 
         def f():
             problem.solve(solver=cp.SCS, eps=1e-10)
@@ -315,10 +315,10 @@ class TestCvxpyLayer(unittest.TestCase):
         A = [cp.Parameter((n, n)) for _ in range(p)]
         b = [cp.Parameter((1, 1)) for _ in range(p)]
 
-        C_tf = tf.Variable(tf.random.normal((n, n), dtype=tf.float64))
-        A_tf = [tf.Variable(tf.random.normal((n, n), dtype=tf.float64))
+        C_tf = jax.numpy.array(jax.random.normal((n, n), dtype=jax.numpy.float64))
+        A_tf = [jax.numpy.array(jax.random.normal((n, n), dtype=jax.numpy.float64))
                 for _ in range(p)]
-        b_tf = [tf.Variable(tf.random.normal((1, 1), dtype=tf.float64))
+        b_tf = [jax.numpy.array(jax.random.normal((1, 1), dtype=jax.numpy.float64))
                 for _ in range(p)]
 
         X = cp.Variable((n, n), symmetric=True)
@@ -334,7 +334,7 @@ class TestCvxpyLayer(unittest.TestCase):
         with tf.GradientTape() as tape:
             soln = layer(*values,
                          solver_args={'eps': 1e-10, 'max_iters': 10000})[0]
-            summed = tf.math.reduce_sum(soln)
+            summed = jax.numpy.sum(soln)
         grads = tape.gradient(summed, values)
 
         def f():

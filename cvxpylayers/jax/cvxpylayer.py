@@ -1,4 +1,5 @@
 from cvxpylayers import utils
+# test put_device instead of array
 
 import cvxpy as cp
 import diffcp
