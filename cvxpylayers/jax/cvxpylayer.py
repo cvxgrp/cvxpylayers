@@ -100,9 +100,13 @@ class CvxpyLayer(object):
             raise ValueError('A value must be provided for each CVXPY '
                              'parameter; received %d values, expected %d' % (
                                  len(parameters), len(self.params)))
-        compute = jax.custom_transforms(
-            lambda *parameters: self._compute(parameters, solver_args))  # need some changes to work
-        return compute(*parameters)
+        compute, compute_grad = self._compute_and_grad(parameters, solver_args)
+        # compute = jax.custom_transforms(compute)
+        # jax.defvjp(compute, compute_grad)
+        print("computed")
+        print(parameters, "\n\n", solver_args)
+        # return compute(*parameters)
+        return 1.
 
     def _dx_from_dsoln(self, dsoln):
         dvars_numpy = list(map(lambda x: x.numpy(), dsoln))
@@ -126,13 +130,13 @@ class CvxpyLayer(object):
 
     def _split_solution(self, x):
         soln = self.asa_maps.split_solution(x, {v.id: v for v in self.vars})
-        return tuple([np.array(soln[v.id]) for v in self.vars])
+        return tuple([jax.put_device(soln[v.id]) for v in self.vars])
 
-    def _compute(self, params, solver_args={}):
+    def _compute_and_grad(self, params, solver_args={}):
         # params = [p.numpy() for p in params]
         nbatch = (0 if len(params[0].shape) == len(self.params[0].shape)
                   else params[0].shape[0])
-
+        print(nbatch)
         if nbatch > 0:
             split_params = [[np.squeeze(p) for p in np.split(param, nbatch)]
                             for param in params]
@@ -152,10 +156,14 @@ class CvxpyLayer(object):
                 np.stack([s[i] for s in solns]) for i in range(self.n_vars)]
         else:
             A, b, c = self._problem_data_from_params(params)
+            print("ELSE", self.cones)
             x, _, s, _, DT = diffcp.solve_and_derivative(
                 A=A, b=b, c=c, cone_dict=self.cones, **solver_args)
             DT = self._restrict_DT_to_dx(DT, nbatch, s.shape)
             solution = self._split_solution(x)
+
+        def _compute(params, solver_args={}):
+            return solution
 
         def gradient_function(*dsoln):
             if nbatch > 0:
@@ -181,6 +189,6 @@ class CvxpyLayer(object):
                 dx = self._dx_from_dsoln(dsoln)
                 dA, db, dc = DT(dx)
                 dparams_dict = self.asa_maps.apply_param_jac(dc, -dA, db)
-                return tuple(np.array(
+                return tuple(jax.put_device(
                     dparams_dict[p.id]) for p in self.params)
-        return solution, gradient_function
+        return _compute, gradient_function
