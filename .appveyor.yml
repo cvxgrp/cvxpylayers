@@ -13,9 +13,10 @@ build_script:
   - '%CONDAPATH%\Scripts\conda update conda'
   - '%CONDAPATH%\Scripts\conda create -p C:\pythontest python=%PYVER%'
   - '%CONDAPATH%\Scripts\activate C:\pythontest'
-  - '%CONDAPATH%\Scripts\conda install numpy scipy'
-  - '%CONDAPATH%\Scripts\conda install pytorch cpuonly -c pytorch'
-  - '%CONDAPATH%\Scripts\conda install tensorflow -c conda-forge'
+  - '%CONDAPATH%\Scripts\conda install -y numpy scipy'
+  - '%CONDAPATH%\Scripts\conda install -y pytorch cpuonly -c pytorch'
+  - '%CONDAPATH%\Scripts\conda install -y tensorflow -c conda-forge'
+  - '%CONDAPATH%\Scripts\conda install -y pytest'
   - where python
   - python setup.py install
 
