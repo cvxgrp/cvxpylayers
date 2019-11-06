@@ -1,0 +1,23 @@
+environment:
+  matrix:
+    - platform: x64
+      CONDAPATH: C:\Miniconda-x64
+      PYVER: 3.5
+
+    - platform: x86
+      CONDAPATH: C:\Miniconda
+      PYVER: 3.5
+
+build_script:
+  - '%CONDAPATH%\Scripts\conda config --set always_yes yes'
+  - '%CONDAPATH%\Scripts\conda update conda'
+  - '%CONDAPATH%\Scripts\conda create -p C:\pythontest python=%PYVER%'
+  - '%CONDAPATH%\Scripts\activate C:\pythontest'
+  - '%CONDAPATH%\Scripts\conda install numpy scipy'
+  - '%CONDAPATH%\Scripts\conda install pytorch cpuonly -c pytorch'
+  - '%CONDAPATH%\Scripts\conda install tensorflow -c conda-forge'
+  - where python
+  - python setup.py install
+
+test_script:
+  - pytest
