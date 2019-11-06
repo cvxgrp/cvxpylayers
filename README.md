@@ -37,7 +37,7 @@ cvxpylayers has the following dependencies:
 * [NumPy](https://pypi.org/project/numpy/)
 * [CVXPY](https://github.com/cvxgrp/cvxpy) >= 1.1.a0
 * [TensorFlow](https://tensorflow.org) >= 2.0 or [PyTorch](https://pytorch.org) >= 1.0
-* [diffcp](https://github.com/cvxgrp/diffcp) >= 1.0.12
+* [diffcp](https://github.com/cvxgrp/diffcp) >= 1.0.13
 
 ## Usage
 Below are usage examples of our PyTorch and TensorFlow layers. Note that
