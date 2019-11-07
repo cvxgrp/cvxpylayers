@@ -157,7 +157,7 @@ class TestCvxpyLayer(unittest.TestCase):
         b = cp.Parameter(m)
         F = cp.Parameter((p, n))
         g = cp.Parameter(p)
-        obj = cp.Maximize(cp.sum(cp.entr(x)) - .001 * cp.sum_squares(x))
+        obj = cp.Maximize(cp.sum(cp.entr(x)) - .01 * cp.sum_squares(x))
         constraints = [A * x == b,
                        F * x <= g]
         prob = cp.Problem(obj, constraints)
@@ -172,9 +172,9 @@ class TestCvxpyLayer(unittest.TestCase):
                                   b_tch,
                                   F_tch,
                                   g_tch),
-                                 eps=1e-5,
-                                 atol=1e-4,
-                                 rtol=1e-4)
+                                 eps=1e-6,
+                                 atol=1e-3,
+                                 rtol=1e-3)
 
     def test_lml(self):
         set_seed(1)
