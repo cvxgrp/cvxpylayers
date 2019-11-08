@@ -1,0 +1,31 @@
+environment:
+  matrix:
+    - platform: x64
+      CONDAPATH: C:\Miniconda-x64
+      PYVER: 3.6
+
+build_script:
+  - '%CONDAPATH%\Scripts\conda config --set always_yes yes'
+  - '%CONDAPATH%\Scripts\conda config --add channels conda-forge'
+  - '%CONDAPATH%\Scripts\conda config --add channels oxfordcontrol'
+  - '%CONDAPATH%\Scripts\conda update conda'
+  - '%CONDAPATH%\Scripts\conda create -n pythontest -y python=%PYVER% mkl=2018.0.3 numpy scipy scs'
+  - '%CONDAPATH%\Scripts\activate pythontest'
+  - where python
+  - pip install --upgrade pip
+  - pip install tensorflow
+  - pip install torch==1.3.0+cpu -f https://download.pytorch.org/whl/torch_stable.html
+  - pip install pytest
+  - pip install .
+
+test_script:
+  - pytest
+
+notifications:
+  - provider: Email
+    to:
+      - stbarratt@gmail.com
+      - akshaykagrawal7@gmail.com
+    on_build_success: false
+    on_build_failure: true
+    on_build_status_changed: true
