@@ -167,7 +167,8 @@ class TestCvxpyLayer(unittest.TestCase):
             lambda x: torch.from_numpy(x).requires_grad_(True), [
                 A_np, b_np, F_np, g_np])
         torch.autograd.gradcheck(lambda *x: layer(*x,
-                                                  solver_args={"eps": 1e-12, "max_iters": 10000}),
+                                 solver_args={"eps": 1e-12,
+                                              "max_iters": 10000}),
                                  (A_tch,
                                   b_tch,
                                   F_tch,
