@@ -1,5 +1,6 @@
 ![cvxpylayers logo](cvxpylayers_logo.png)
 [![Build Status](https://travis-ci.org/cvxgrp/cvxpylayers.svg?branch=master)](https://travis-ci.org/cvxgrp/cvxpylayers)
+[![Build Status](https://ci.appveyor.com/api/projects/status/dhtbi9fb96mce56i/branch/master?svg=true)](https://ci.appveyor.com/project/sbarratt/cvxpylayers/branch/master)
 
 # cvxpylayers
 
