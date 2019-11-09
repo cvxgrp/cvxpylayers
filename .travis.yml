@@ -38,7 +38,7 @@ script:
   - pytest
   - flake8 cvxpylayers
   - jupyter nbconvert --to notebook --execute examples/torch/*.ipynb
-  - jupyter nbconvert --to notebook --execute examples/tensorflow/*.ipynb
+  - jupyter nbconvert --to notebook --execute examples/tf/*.ipynb
 
 notifications:
   email:
