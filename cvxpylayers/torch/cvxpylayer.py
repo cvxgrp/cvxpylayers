@@ -224,7 +224,8 @@ def _CvxpyLayerFn(
             As, bs, cs, cone_dicts, ctx.shapes = [], [], [], [], []
             for i in range(ctx.batch_size):
                 c, _, neg_A, b = compiler.apply_parameters(
-                    dict(zip(param_ids, [p[i] for p in params_numpy])))
+                    dict(zip(param_ids, [p[i] for p in params_numpy])),
+                    keep_zeros=True)
                 A = -neg_A  # cvxpy canonicalizes -A
                 As.append(A)
                 bs.append(b)
