@@ -26,7 +26,8 @@ matrix:
     python: "3.7"
 
 before_install:
-  - sudo apt-get install liblapack-dev;
+  - sudo apt-get install liblapack-dev
+  - sudo apt-get install ffmpeg
 
 install:
   - pip install --upgrade pip
