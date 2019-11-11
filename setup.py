@@ -15,8 +15,8 @@ setup(
     install_requires=[
         "numpy >= 1.15",
         "scipy >= 1.1.0",
-        "diffcp >= 1.0.12",
-        "cvxpy >= 1.1.0a0"],
+        "diffcp >= 1.0.13",
+        "cvxpy >= 1.1.0a1"],
     license="Apache License, Version 2.0",
     url="https://github.com/cvxgrp/cvxpylayers",
     classifiers=[

@@ -116,8 +116,8 @@ class CvxpyLayer(object):
         return self.asa_maps.split_adjoint(del_vars)
 
     def _problem_data_from_params(self, params):
-        c, _, A, b = self.asa_maps.apply_parameters(dict(zip(self.param_ids,
-                                                             params)))
+        c, _, A, b = self.asa_maps.apply_parameters(
+            dict(zip(self.param_ids, params)), keep_zeros=True)
         A = -A
         return A, b, c
 
