@@ -67,17 +67,16 @@ class CvxpyLayer(torch.nn.Module):
                      Variables determines the order of the optimal variable
                      values returned from the forward pass.
         """
-        if not problem.is_dpp():
-            raise ValueError('Problem must be DPP.')
-
         super(CvxpyLayer, self).__init__()
 
-        assert set(problem.parameters()) == set(parameters), \
-            "The layer's parameters must exactly match problem.parameters"
-        assert set(variables).issubset(set(problem.variables())), \
-            "Argument variables must be a subset of problem.variables"
-        assert hasattr(problem, "get_problem_data"), \
-            "cvxpy problem does not support ASA form; please upgrade cvxpy"
+        if not problem.is_dpp():
+            raise ValueError('Problem must be DPP.')
+        if not set(problem.parameters()) == set(parameters):
+            raise ValueError("The layer's parameters must exactly match "
+                             "problem.parameters")
+        if not set(variables).issubset(set(problem.variables())):
+            raise ValueError("Argument variables must be a subset of "
+                             "problem.variables")
 
         self.param_order = parameters
         self.param_ids = [p.id for p in self.param_order]
@@ -105,6 +104,11 @@ class CvxpyLayer(torch.nn.Module):
           a list of optimal variable values, one for each CVXPY Variable
           supplied to the constructor.
         """
+        # TODO(akshakya): Validate shapes of params.
+        if len(params) != len(self.param_ids):
+            raise ValueError('A tensor must be provided for each CVXPY '
+                             'parameter; received %d tensors, expected %d' % (
+                                 len(params), len(self.param_ids)))
         info = {}
         f = _CvxpyLayerFn(
             param_order=self.param_order,
