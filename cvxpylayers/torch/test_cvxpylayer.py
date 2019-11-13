@@ -215,7 +215,7 @@ class TestCvxpyLayer(unittest.TestCase):
                           constraints)
         layer = CvxpyLayer(prob, [C] + A + b, [X])
         torch.autograd.gradcheck(lambda *x: layer(*x,
-                                                  solver_args={"eps": 1e-12}),
+                                                  solver_args={'eps': 1e-12}),
                                  [C_tch] + A_tch + b_tch,
                                  eps=1e-6,
                                  atol=1e-3,
@@ -227,8 +227,20 @@ class TestCvxpyLayer(unittest.TestCase):
         lam2 = cp.Parameter(1, nonneg=True)
         objective = lam * cp.norm(x, 1) + lam2 * cp.sum_squares(x)
         prob = cp.Problem(cp.Minimize(objective))
-        with self.assertRaises(AssertionError):
+        with self.assertRaises(ValueError):
             layer = CvxpyLayer(prob, [lam], [x])  # noqa: F841
+
+    def test_not_enough_parameters_at_call_time(self):
+        x = cp.Variable(1)
+        lam = cp.Parameter(1, nonneg=True)
+        lam2 = cp.Parameter(1, nonneg=True)
+        objective = lam * cp.norm(x, 1) + lam2 * cp.sum_squares(x)
+        prob = cp.Problem(cp.Minimize(objective))
+        layer = CvxpyLayer(prob, [lam, lam2], [x])  # noqa: F841
+        with self.assertRaisesRegex(
+                ValueError,
+                'A tensor must be provided for each CVXPY parameter.*'):
+            layer(lam)
 
     def test_too_many_variables(self):
         x = cp.Variable(1)
@@ -236,7 +248,7 @@ class TestCvxpyLayer(unittest.TestCase):
         lam = cp.Parameter(1, nonneg=True)
         objective = lam * cp.norm(x, 1)
         prob = cp.Problem(cp.Minimize(objective))
-        with self.assertRaises(AssertionError):
+        with self.assertRaises(ValueError):
             layer = CvxpyLayer(prob, [lam], [x, y])  # noqa: F841
 
     def test_infeasible(self):

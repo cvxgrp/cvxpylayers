@@ -100,9 +100,10 @@ class CvxpyLayer(object):
           a list of optimal variable values, one for each CVXPY Variable
           supplied to the constructor.
         """
+        # TODO(akshakya): Validate shapes of params.
         if len(parameters) != len(self.params):
-            raise ValueError('A value must be provided for each CVXPY '
-                             'parameter; received %d values, expected %d' % (
+            raise ValueError('A tensor must be provided for each CVXPY '
+                             'parameter; received %d tensors, expected %d' % (
                                  len(parameters), len(self.params)))
         compute = tf.custom_gradient(
             lambda *parameters: self._compute(parameters, solver_args))
