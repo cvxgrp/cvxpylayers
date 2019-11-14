@@ -298,6 +298,49 @@ class TestCvxpyLayer(unittest.TestCase):
         with self.assertRaises(RuntimeError):
             prob_th(A_th, b_th)
 
+        A_th = torch.randn(32, m, n).double().requires_grad_()
+        b_th = torch.randn(32, 32, m).double().requires_grad_()
+
+        with self.assertRaises(RuntimeError):
+            prob_th(A_th, b_th)
+
+    def test_broadcasting(self):
+        set_seed(243)
+        n_batch, N, n = 2, 10, 2
+
+        X_np = np.random.randn(N, n)
+        a_true = np.random.randn(n, 1)
+        y_np = np.round(sigmoid(X_np @ a_true + np.random.randn(N, 1) * 0.5))
+
+        X_tch = torch.from_numpy(X_np).unsqueeze(0).repeat(n_batch, 1, 1)
+        X_tch.requires_grad_(True)
+        lam_tch = 0.1 * torch.ones(1, requires_grad=True, dtype=torch.double)
+
+        a = cp.Variable((n, 1))
+        X = cp.Parameter((N, n))
+        lam = cp.Parameter(1, nonneg=True)
+        y = y_np
+
+        log_likelihood = cp.sum(
+            cp.multiply(y, X @ a) -
+            cp.log_sum_exp(cp.hstack([np.zeros((N, 1)), X @ a]).T, axis=0,
+                           keepdims=True).T
+        )
+        prob = cp.Problem(
+            cp.Minimize(-log_likelihood + lam * cp.sum_squares(a)))
+
+        fit_logreg = CvxpyLayer(prob, [X, lam], [a])
+
+        def layer_eps(*x):
+            return fit_logreg(*x, solver_args={"eps": 1e-12})
+
+        torch.autograd.gradcheck(layer_eps,
+                                 (X_tch,
+                                  lam_tch),
+                                 eps=1e-4,
+                                 atol=1e-3,
+                                 rtol=1e-3)
+
 
 if __name__ == '__main__':
     unittest.main()
