@@ -169,9 +169,11 @@ def _CvxpyLayerFn(
                         (i, str(ctx.device), str(p.device))
                     )
 
-            # check the parameter and batch sizes
             ctx.batch_sizes = []
             for i, (p, q) in enumerate(zip(params, param_order)):
+                # check and extract the batch size for the parameter
+                # 0 means there is no batch dimension for this parameter
+                # and we assume the batch dimension is non-zero
                 if p.ndimension() == q.ndim:
                     batch_size = 0
                 elif p.ndimension() == q.ndim + 1:
@@ -187,6 +189,7 @@ def _CvxpyLayerFn(
 
                 ctx.batch_sizes.append(batch_size)
 
+                # validate the parameter shape
                 p_shape = p.shape if batch_size == 0 else p.shape[1:]
                 if not np.all(p_shape == param_order[i].shape):
                     raise RuntimeError(
