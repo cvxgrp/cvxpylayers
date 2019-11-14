@@ -173,20 +173,21 @@ def _CvxpyLayerFn(
             ctx.batch_sizes = []
             for i, (p, q) in enumerate(zip(params, param_order)):
                 if p.ndimension() == q.ndim:
-                    ctx.batch_sizes.append(0)
+                    batch_size = 0
                 elif p.ndimension() == q.ndim + 1:
-                    assert p.size(0) > 0
-                    ctx.batch_sizes.append(p.size(0))
+                    batch_size = p.size(0)
+                    assert batch_size > 0
                 else:
                     raise RuntimeError(
                         "Invalid parameter size passed in. Expected "
-                        "paramater {} to have have {} or {} dimensions "
+                        "parameter {} to have have {} or {} dimensions "
                         "but got {} dimensions".format(
                         i, q.ndim, q.ndim + 1, p.ndimension()
                     ))
 
-            for i, (p, sz) in enumerate(zip(params_numpy, ctx.batch_sizes)):
-                p_shape = p.shape if sz == 0 else p.shape[1:]
+                ctx.batch_sizes.append(batch_size)
+
+                p_shape = p.shape if batch_size == 0 else p.shape[1:]
                 if not np.all(p_shape == param_order[i].shape):
                     raise RuntimeError(
                         "Inconsistent parameter shapes passed in. "
