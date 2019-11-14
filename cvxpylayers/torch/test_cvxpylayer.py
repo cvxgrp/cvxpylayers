@@ -306,40 +306,42 @@ class TestCvxpyLayer(unittest.TestCase):
 
     def test_broadcasting(self):
         set_seed(243)
-        n_batch, N, n = 2, 10, 2
+        n_batch, m, n = 2, 100, 20
 
-        X_np = np.random.randn(N, n)
-        a_true = np.random.randn(n, 1)
-        y_np = np.round(sigmoid(X_np @ a_true + np.random.randn(N, 1) * 0.5))
+        A = cp.Parameter((m, n))
+        b = cp.Parameter(m)
+        x = cp.Variable(n)
+        obj = cp.sum_squares(A@x - b) + cp.sum_squares(x)
+        prob = cp.Problem(cp.Minimize(obj))
+        prob_th = CvxpyLayer(prob, [A, b], [x])
 
-        X_tch = torch.from_numpy(X_np).unsqueeze(0).repeat(n_batch, 1, 1)
-        X_tch.requires_grad_(True)
-        lam_tch = 0.1 * torch.ones(1, requires_grad=True, dtype=torch.double)
+        A_th = torch.randn(m, n).double().requires_grad_()
+        b_th = torch.randn(m).double().unsqueeze(0).repeat(n_batch, 1).requires_grad_()
+        b_th_0 = b_th[0]
 
-        a = cp.Variable((n, 1))
-        X = cp.Parameter((N, n))
-        lam = cp.Parameter(1, nonneg=True)
-        y = y_np
+        x = prob_th(A_th, b_th, solver_args={"eps": 1e-10})[0]
 
-        log_likelihood = cp.sum(
-            cp.multiply(y, X @ a) -
-            cp.log_sum_exp(cp.hstack([np.zeros((N, 1)), X @ a]).T, axis=0,
-                           keepdims=True).T
-        )
-        prob = cp.Problem(
-            cp.Minimize(-log_likelihood + lam * cp.sum_squares(a)))
+        def lstsq(
+            A,
+            b): return torch.solve(
+            (A.t() @ b).unsqueeze(1),
+            A.t() @ A +
+            torch.eye(n).double())[0]
+        x_lstsq = lstsq(A_th, b_th_0)
 
-        fit_logreg = CvxpyLayer(prob, [X, lam], [a])
+        grad_A_cvxpy, grad_b_cvxpy = grad(x.sum(), [A_th, b_th])
+        grad_A_lstsq, grad_b_lstsq = grad(x_lstsq.sum(), [A_th, b_th_0])
 
-        def layer_eps(*x):
-            return fit_logreg(*x, solver_args={"eps": 1e-12})
-
-        torch.autograd.gradcheck(layer_eps,
-                                 (X_tch,
-                                  lam_tch),
-                                 eps=1e-4,
-                                 atol=1e-3,
-                                 rtol=1e-3)
+        self.assertAlmostEqual(
+            torch.norm(
+                grad_A_cvxpy/n_batch -
+                grad_A_lstsq).item(),
+            0.0)
+        self.assertAlmostEqual(
+            torch.norm(
+                grad_b_cvxpy[0] -
+                grad_b_lstsq).item(),
+            0.0)
 
 
 if __name__ == '__main__':
