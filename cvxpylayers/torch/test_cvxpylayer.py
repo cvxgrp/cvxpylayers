@@ -316,7 +316,8 @@ class TestCvxpyLayer(unittest.TestCase):
         prob_th = CvxpyLayer(prob, [A, b], [x])
 
         A_th = torch.randn(m, n).double().requires_grad_()
-        b_th = torch.randn(m).double().unsqueeze(0).repeat(n_batch, 1).requires_grad_()
+        b_th = torch.randn(m).double().unsqueeze(0).repeat(n_batch, 1) \
+            .requires_grad_()
         b_th_0 = b_th[0]
 
         x = prob_th(A_th, b_th, solver_args={"eps": 1e-10})[0]

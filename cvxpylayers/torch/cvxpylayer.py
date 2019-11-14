@@ -184,8 +184,7 @@ def _CvxpyLayerFn(
                         "Invalid parameter size passed in. Expected "
                         "parameter {} to have have {} or {} dimensions "
                         "but got {} dimensions".format(
-                        i, q.ndim, q.ndim + 1, p.ndimension()
-                    ))
+                            i, q.ndim, q.ndim + 1, p.ndimension()))
 
                 ctx.batch_sizes.append(batch_size)
 
@@ -194,8 +193,8 @@ def _CvxpyLayerFn(
                 if not np.all(p_shape == param_order[i].shape):
                     raise RuntimeError(
                         "Inconsistent parameter shapes passed in. "
-                        "Expected parameter {} to have non-batched shape of {} "
-                        "but got {}.".format(
+                        "Expected parameter {} to have non-batched shape of "
+                        "{} but got {}.".format(
                                 i,
                                 q.shape,
                                 p.shape))
@@ -211,8 +210,7 @@ def _CvxpyLayerFn(
                         "Inconsistent batch sizes passed in. Expected "
                         "parameters to have no batch size or all the same "
                         "batch size but got sizes: {}.".format(
-                        ctx.batch_sizes
-                    ))
+                            ctx.batch_sizes))
             else:
                 ctx.batch_size = 1
 
@@ -220,8 +218,9 @@ def _CvxpyLayerFn(
             start = time.time()
             As, bs, cs, cone_dicts, ctx.shapes = [], [], [], [], []
             for i in range(ctx.batch_size):
-                params_numpy_i = [p if sz == 0 else p[i]
-                                  for p, sz in zip(params_numpy, ctx.batch_sizes)]
+                params_numpy_i = [
+                    p if sz == 0 else p[i]
+                    for p, sz in zip(params_numpy, ctx.batch_sizes)]
                 c, _, neg_A, b = compiler.apply_parameters(
                     dict(zip(param_ids, params_numpy_i)),
                     keep_zeros=True)
@@ -294,7 +293,7 @@ def _CvxpyLayerFn(
             if not ctx.batch:
                 grad = [g.squeeze(0) for g in grad]
             else:
-                for i, (g, sz) in enumerate(zip(grad, ctx.batch_sizes)):
+                for i, sz in enumerate(ctx.batch_sizes):
                     if sz == 0:
                         grad[i] = grad[i].sum(dim=0)
 
