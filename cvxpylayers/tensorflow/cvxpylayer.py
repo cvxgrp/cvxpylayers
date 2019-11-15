@@ -227,7 +227,7 @@ class CvxpyLayer(object):
                     tf.constant([d[p.id] for d in dparams_dict_unbatched]))
 
             if not any_batched:
-                dparams = tuple(tf.squeeze(dparam) for dparam in dparams)
+                dparams = tuple(tf.squeeze(dparam, 0) for dparam in dparams)
             else:
                 for i, sz in enumerate(batch_sizes):
                     if sz == 0:
