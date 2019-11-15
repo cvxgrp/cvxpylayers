@@ -77,13 +77,12 @@ class CvxpyLayer(object):
                              '`problem.variables()`')
 
         data, _, _ = problem.get_problem_data(solver=cp.SCS)
+
         self.asa_maps = data[cp.settings.PARAM_PROB]
         self.cones = utils.dims_to_solver_dict(data['dims'])
         self.params = parameters
         self.param_ids = [p.id for p in self.params]
         self.vars = variables
-        self.n_vars = len(self.vars)
-        self.var_dict = {v.id: v for v in self.vars}
 
     def __call__(self, *parameters, solver_args={}):
         """Solve problem (or a batch of problems) corresponding to `parameters`
@@ -100,7 +99,6 @@ class CvxpyLayer(object):
           a list of optimal variable values, one for each CVXPY Variable
           supplied to the constructor.
         """
-        # TODO(akshakya): Validate shapes of params.
         if len(parameters) != len(self.params):
             raise ValueError('A tensor must be provided for each CVXPY '
                              'parameter; received %d tensors, expected %d' % (
@@ -122,9 +120,9 @@ class CvxpyLayer(object):
         A = -A
         return A, b, c
 
-    def _restrict_DT_to_dx(self, DT, nbatch, s_shape):
-        if nbatch > 0:
-            zeros = [np.zeros(s_shape) for _ in range(nbatch)]
+    def _restrict_DT_to_dx(self, DT, batch_size, s_shape):
+        if batch_size > 0:
+            zeros = [np.zeros(s_shape) for _ in range(batch_size)]
         else:
             zeros = np.zeros(s_shape)
         return lambda dxs: DT(dxs, zeros, zeros)
@@ -135,57 +133,105 @@ class CvxpyLayer(object):
 
     def _compute(self, params, solver_args={}):
         params = [p.numpy() for p in params]
-        nbatch = (0 if len(params[0].shape) == len(self.params[0].shape)
-                  else params[0].shape[0])
 
-        if nbatch > 0:
-            split_params = [[np.squeeze(p) for p in np.split(param, nbatch)]
-                            for param in params]
-            params_per_problem = [
-                [param_list[i] for param_list in split_params]
-                for i in range(nbatch)]
-            As, bs, cs = zip(*[
-                self._problem_data_from_params(p) for p in params_per_problem])
-            xs, _, ss, _, DT = diffcp.solve_and_derivative_batch(
-                As=As, bs=bs, cs=cs, cone_dicts=[self.cones] * nbatch,
-                **solver_args)
-            DT = self._restrict_DT_to_dx(DT, nbatch, ss[0].shape)
-            solns = [self._split_solution(x) for x in xs]
-            # soln[i] is a tensor with first dimension equal to nbatch, holding
-            # the optimal values for variable i
-            solution = [
-                tf.stack([s[i] for s in solns]) for i in range(self.n_vars)]
+        # infer whether params are batched
+        batch_sizes = []
+        for i, (p_in, p_signature) in enumerate(zip(params, self.params)):
+            # check and extract the batch size for the parameter
+            # 0 means there is no batch dimension for this parameter
+            # and we assume the batch dimension is non-zero
+            if p_in.ndim == p_signature.ndim:
+                batch_size = 0
+            elif p_in.ndim == p_signature.ndim + 1:
+                batch_size = p_in.shape[0]
+                if batch_size == 0:
+                    raise ValueError(
+                        "Invalid parameter size passed in. "
+                        "Parameter {} appears to be batched, but the leading "
+                        "dimension is 0".format(i))
+            else:
+                raise ValueError(
+                    "Invalid parameter size passed in. Expected "
+                    "parameter {} to have have {} or {} dimensions "
+                    "but got {} dimensions".format(
+                        i, p_signature.ndim, p_signature.ndim + 1,
+                        p_in.ndim))
+            batch_sizes.append(batch_size)
+
+            # validate the parameter shape
+            p_shape = p_in.shape if batch_size == 0 else p_in.shape[1:]
+            if not np.all(p_shape == p_signature.shape):
+                raise ValueError(
+                    "Inconsistent parameter shapes passed in. "
+                    "Expected parameter {} to have non-batched shape of "
+                    "{} but got {}.".format(
+                            i,
+                            p_signature.shape,
+                            p_signature.shape))
+
+        batch_sizes = np.array(batch_sizes)
+        any_batched = np.any(batch_sizes > 0)
+
+        if any_batched:
+            nonzero_batch_sizes = batch_sizes[batch_sizes > 0]
+            batch_size = int(nonzero_batch_sizes[0])
+            if np.any(nonzero_batch_sizes != batch_size):
+                raise ValueError(
+                    "Inconsistent batch sizes passed in. Expected "
+                    "parameters to have no batch size or all the same "
+                    "batch size but got sizes: {}.".format(batch_sizes))
         else:
-            A, b, c = self._problem_data_from_params(params)
-            x, _, s, _, DT = diffcp.solve_and_derivative(
-                A=A, b=b, c=c, cone_dict=self.cones, **solver_args)
-            DT = self._restrict_DT_to_dx(DT, nbatch, s.shape)
-            solution = self._split_solution(x)
+            batch_size = 1
+
+        As, bs, cs = [], [], []
+        for i in range(batch_size):
+            params_i = [
+                p if sz == 0 else p[i] for p, sz in zip(params, batch_sizes)]
+            A, b, c = self._problem_data_from_params(params_i)
+            As.append(A)
+            bs.append(b)
+            cs.append(c)
+
+        xs, _, ss, _, DT = diffcp.solve_and_derivative_batch(
+            As=As, bs=bs, cs=cs, cone_dicts=[self.cones] * batch_size,
+            **solver_args)
+        DT = self._restrict_DT_to_dx(DT, batch_size, ss[0].shape)
+        solns = [self._split_solution(x) for x in xs]
+        # soln[i] is a tensor with first dimension equal to batch_size, holding
+        # the optimal values for variable i
+        solution = [
+            tf.stack([s[i] for s in solns]) for i in range(len(self.vars))]
+        if not any_batched:
+            solution = [tf.squeeze(s, 0) for s in solution]
 
         def gradient_function(*dsoln):
-            if nbatch > 0:
-                # split the batched dsoln tensors into lists, with one list
-                # corresponding to each problem in the batch
-                dsoln_lists = [[] for _ in range(nbatch)]
-                for value in dsoln:
-                    tensors = tf.split(value, nbatch)
-                    for dsoln_list, t in zip(dsoln_lists, tensors):
-                        dsoln_list.append(tf.squeeze(t))
-                dxs = [self._dx_from_dsoln(dsoln_list)
-                       for dsoln_list in dsoln_lists]
-                dAs, dbs, dcs = DT(dxs)
-                dparams_dict_unbatched = [
-                    self.asa_maps.apply_param_jac(dc, -dA, db) for
-                    (dA, db, dc) in zip(dAs, dbs, dcs)]
-                dparams = []
-                for p in self.params:
-                    dparams.append(
-                        tf.constant([d[p.id] for d in dparams_dict_unbatched]))
-                return dparams
+            if not any_batched:
+                dsoln = [tf.expand_dims(dvar, 0) for dvar in dsoln]
+
+            # split the batched dsoln tensors into lists, with one list
+            # corresponding to each problem in the batch
+            dsoln_lists = [[] for _ in range(batch_size)]
+            for value in dsoln:
+                tensors = tf.split(value, batch_size)
+                for dsoln_list, t in zip(dsoln_lists, tensors):
+                    dsoln_list.append(tf.squeeze(t))
+            dxs = [self._dx_from_dsoln(dsoln_list)
+                   for dsoln_list in dsoln_lists]
+            dAs, dbs, dcs = DT(dxs)
+            dparams_dict_unbatched = [
+                self.asa_maps.apply_param_jac(dc, -dA, db) for
+                (dA, db, dc) in zip(dAs, dbs, dcs)]
+            dparams = []
+            for p in self.params:
+                dparams.append(
+                    tf.constant([d[p.id] for d in dparams_dict_unbatched]))
+
+            if not any_batched:
+                dparams = tuple(tf.squeeze(dparam) for dparam in dparams)
             else:
-                dx = self._dx_from_dsoln(dsoln)
-                dA, db, dc = DT(dx)
-                dparams_dict = self.asa_maps.apply_param_jac(dc, -dA, db)
-                return tuple(tf.constant(
-                    dparams_dict[p.id]) for p in self.params)
+                for i, sz in enumerate(batch_sizes):
+                    if sz == 0:
+                        dparams[i] = tf.reduce_sum(dparams[i], axis=0)
+            return tuple(dparams)
+
         return solution, gradient_function
