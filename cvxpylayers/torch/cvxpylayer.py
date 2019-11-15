@@ -104,7 +104,6 @@ class CvxpyLayer(torch.nn.Module):
           a list of optimal variable values, one for each CVXPY Variable
           supplied to the constructor.
         """
-        # TODO(akshakya): Validate shapes of params.
         if len(params) != len(self.param_ids):
             raise ValueError('A tensor must be provided for each CVXPY '
                              'parameter; received %d tensors, expected %d' % (
@@ -150,85 +149,82 @@ def _CvxpyLayerFn(
             params_numpy = [to_numpy(p) for p in params]
 
             # infer dtype, device, and whether or not params are batched
-            param_0_shape = params[0].shape
             ctx.dtype = params[0].dtype
             ctx.device = params[0].device
-            ctx.batch = len(param_0_shape) > len(param_order[0].shape)
 
-            # check dtype, device of params
-            for i, p in enumerate(params):
+            ctx.batch_sizes = []
+            for i, (p, q) in enumerate(zip(params, param_order)):
+                # check dtype, device of params
                 if p.dtype != ctx.dtype:
-                    raise RuntimeError(
+                    raise ValueError(
                         "Two or more parameters have different dtypes. "
                         "Expected parameter %d to have dtype %s but "
                         "got dtype %s." %
                         (i, str(ctx.dtype), str(p.dtype))
                     )
                 if p.device != ctx.device:
-                    raise RuntimeError(
+                    raise ValueError(
                         "Two or more parameters are on different devices. "
                         "Expected parameter %d to be on device %s "
                         "but got device %s." %
                         (i, str(ctx.device), str(p.device))
                     )
 
-            # check shapes of params
+                # check and extract the batch size for the parameter
+                # 0 means there is no batch dimension for this parameter
+                # and we assume the batch dimension is non-zero
+                if p.ndimension() == q.ndim:
+                    batch_size = 0
+                elif p.ndimension() == q.ndim + 1:
+                    batch_size = p.size(0)
+                    if batch_size == 0:
+                        raise ValueError(
+                            "The batch dimension for parameter {} is zero "
+                            "but should be non-zero.".format(i))
+                else:
+                    raise ValueError(
+                        "Invalid parameter size passed in. Expected "
+                        "parameter {} to have have {} or {} dimensions "
+                        "but got {} dimensions".format(
+                            i, q.ndim, q.ndim + 1, p.ndimension()))
+
+                ctx.batch_sizes.append(batch_size)
+
+                # validate the parameter shape
+                p_shape = p.shape if batch_size == 0 else p.shape[1:]
+                if not np.all(p_shape == param_order[i].shape):
+                    raise ValueError(
+                        "Inconsistent parameter shapes passed in. "
+                        "Expected parameter {} to have non-batched shape of "
+                        "{} but got {}.".format(
+                                i,
+                                q.shape,
+                                p.shape))
+
+            ctx.batch_sizes = np.array(ctx.batch_sizes)
+            ctx.batch = np.any(ctx.batch_sizes > 0)
+
             if ctx.batch:
-                ctx.batch_size = param_0_shape[0]
-                for i, p in enumerate(params_numpy):
-                    if len(p.shape) != len(param_order[i].shape) + 1:
-                        raise RuntimeError(
-                            "Inconsistent batch size passed in. Expected "
-                            "parameter {} to have batch shape of {} dims "
-                            "but got {} dims.".format(
-                                i, 1 + len(
-                                    param_order[i].shape), len(
-                                    p.shape)))
-
-                    if not np.all(p.shape[1:] == param_order[i].shape):
-                        raise RuntimeError(
-                            "Inconsistent parameter shapes passed in. "
-                            "Expected parameter {} to have shape of {} "
-                            "but got {}.".format(
-                                 i,
-                                 param_order[i].shape,
-                                 p.shape[1:]))
-
-                    if p.shape[0] != ctx.batch_size:
-                        raise RuntimeError(
-                            "Inconsistent batch size passed in. Expected "
-                            "parameter {} to have batch size {} but "
-                            "got {}.".format(
-                                i, ctx.batch_size, p.shape[0]))
+                nonzero_batch_sizes = ctx.batch_sizes[ctx.batch_sizes > 0]
+                ctx.batch_size = nonzero_batch_sizes[0]
+                if np.any(nonzero_batch_sizes != ctx.batch_size):
+                    raise ValueError(
+                        "Inconsistent batch sizes passed in. Expected "
+                        "parameters to have no batch size or all the same "
+                        "batch size but got sizes: {}.".format(
+                            ctx.batch_sizes))
             else:
                 ctx.batch_size = 1
-                for i, p in enumerate(params_numpy):
-                    if len(p.shape) != len(param_order[i].shape):
-                        raise RuntimeError(
-                            "Inconsistent batch size passed in. Expected "
-                            "parameter {} to have batch shape of {} "
-                            "dims but got {} dims.".format(
-                                i, len(
-                                    param_order[i].shape), len(
-                                    p.shape)))
-
-                    if not np.all(p.shape == param_order[i].shape):
-                        raise RuntimeError(
-                            "Inconsistent parameter shapes passed in. "
-                            "Expected parameter {} to have shape of {} "
-                            "but got {}.".format(
-                                 i,
-                                 param_order[i].shape,
-                                 p.shape))
-
-                    params_numpy[i] = np.expand_dims(p, 0)
 
             # canonicalize problem
             start = time.time()
             As, bs, cs, cone_dicts, ctx.shapes = [], [], [], [], []
             for i in range(ctx.batch_size):
+                params_numpy_i = [
+                    p if sz == 0 else p[i]
+                    for p, sz in zip(params_numpy, ctx.batch_sizes)]
                 c, _, neg_A, b = compiler.apply_parameters(
-                    dict(zip(param_ids, [p[i] for p in params_numpy])),
+                    dict(zip(param_ids, params_numpy_i)),
                     keep_zeros=True)
                 A = -neg_A  # cvxpy canonicalizes -A
                 As.append(A)
@@ -298,6 +294,10 @@ def _CvxpyLayerFn(
 
             if not ctx.batch:
                 grad = [g.squeeze(0) for g in grad]
+            else:
+                for i, sz in enumerate(ctx.batch_sizes):
+                    if sz == 0:
+                        grad[i] = grad[i].sum(dim=0)
 
             return tuple(grad)
 

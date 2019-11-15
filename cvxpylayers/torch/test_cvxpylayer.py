@@ -283,20 +283,66 @@ class TestCvxpyLayer(unittest.TestCase):
         A_th = torch.randn(32, m, n).double().requires_grad_()
         b_th = torch.randn(20, m).double().requires_grad_()
 
-        with self.assertRaises(RuntimeError):
+        with self.assertRaises(ValueError):
             prob_th(A_th, b_th)
 
         A_th = torch.randn(32, m, n).double().requires_grad_()
         b_th = torch.randn(32, 2*m).double().requires_grad_()
 
-        with self.assertRaises(RuntimeError):
+        with self.assertRaises(ValueError):
             prob_th(A_th, b_th)
 
         A_th = torch.randn(m, n).double().requires_grad_()
         b_th = torch.randn(2*m).double().requires_grad_()
 
-        with self.assertRaises(RuntimeError):
+        with self.assertRaises(ValueError):
             prob_th(A_th, b_th)
+
+        A_th = torch.randn(32, m, n).double().requires_grad_()
+        b_th = torch.randn(32, 32, m).double().requires_grad_()
+
+        with self.assertRaises(ValueError):
+            prob_th(A_th, b_th)
+
+    def test_broadcasting(self):
+        set_seed(243)
+        n_batch, m, n = 2, 100, 20
+
+        A = cp.Parameter((m, n))
+        b = cp.Parameter(m)
+        x = cp.Variable(n)
+        obj = cp.sum_squares(A@x - b) + cp.sum_squares(x)
+        prob = cp.Problem(cp.Minimize(obj))
+        prob_th = CvxpyLayer(prob, [A, b], [x])
+
+        A_th = torch.randn(m, n).double().requires_grad_()
+        b_th = torch.randn(m).double().unsqueeze(0).repeat(n_batch, 1) \
+            .requires_grad_()
+        b_th_0 = b_th[0]
+
+        x = prob_th(A_th, b_th, solver_args={"eps": 1e-10})[0]
+
+        def lstsq(
+            A,
+            b): return torch.solve(
+            (A.t() @ b).unsqueeze(1),
+            A.t() @ A +
+            torch.eye(n).double())[0]
+        x_lstsq = lstsq(A_th, b_th_0)
+
+        grad_A_cvxpy, grad_b_cvxpy = grad(x.sum(), [A_th, b_th])
+        grad_A_lstsq, grad_b_lstsq = grad(x_lstsq.sum(), [A_th, b_th_0])
+
+        self.assertAlmostEqual(
+            torch.norm(
+                grad_A_cvxpy/n_batch -
+                grad_A_lstsq).item(),
+            0.0)
+        self.assertAlmostEqual(
+            torch.norm(
+                grad_b_cvxpy[0] -
+                grad_b_lstsq).item(),
+            0.0)
 
 
 if __name__ == '__main__':
