@@ -283,25 +283,25 @@ class TestCvxpyLayer(unittest.TestCase):
         A_th = torch.randn(32, m, n).double().requires_grad_()
         b_th = torch.randn(20, m).double().requires_grad_()
 
-        with self.assertRaises(RuntimeError):
+        with self.assertRaises(ValueError):
             prob_th(A_th, b_th)
 
         A_th = torch.randn(32, m, n).double().requires_grad_()
         b_th = torch.randn(32, 2*m).double().requires_grad_()
 
-        with self.assertRaises(RuntimeError):
+        with self.assertRaises(ValueError):
             prob_th(A_th, b_th)
 
         A_th = torch.randn(m, n).double().requires_grad_()
         b_th = torch.randn(2*m).double().requires_grad_()
 
-        with self.assertRaises(RuntimeError):
+        with self.assertRaises(ValueError):
             prob_th(A_th, b_th)
 
         A_th = torch.randn(32, m, n).double().requires_grad_()
         b_th = torch.randn(32, 32, m).double().requires_grad_()
 
-        with self.assertRaises(RuntimeError):
+        with self.assertRaises(ValueError):
             prob_th(A_th, b_th)
 
     def test_broadcasting(self):

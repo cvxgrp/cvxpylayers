@@ -152,25 +152,24 @@ def _CvxpyLayerFn(
             ctx.dtype = params[0].dtype
             ctx.device = params[0].device
 
-            # check dtype, device of params
-            for i, p in enumerate(params):
+            ctx.batch_sizes = []
+            for i, (p, q) in enumerate(zip(params, param_order)):
+                # check dtype, device of params
                 if p.dtype != ctx.dtype:
-                    raise RuntimeError(
+                    raise ValueError(
                         "Two or more parameters have different dtypes. "
                         "Expected parameter %d to have dtype %s but "
                         "got dtype %s." %
                         (i, str(ctx.dtype), str(p.dtype))
                     )
                 if p.device != ctx.device:
-                    raise RuntimeError(
+                    raise ValueError(
                         "Two or more parameters are on different devices. "
                         "Expected parameter %d to be on device %s "
                         "but got device %s." %
                         (i, str(ctx.device), str(p.device))
                     )
 
-            ctx.batch_sizes = []
-            for i, (p, q) in enumerate(zip(params, param_order)):
                 # check and extract the batch size for the parameter
                 # 0 means there is no batch dimension for this parameter
                 # and we assume the batch dimension is non-zero
@@ -180,7 +179,7 @@ def _CvxpyLayerFn(
                     batch_size = p.size(0)
                     assert batch_size > 0
                 else:
-                    raise RuntimeError(
+                    raise ValueError(
                         "Invalid parameter size passed in. Expected "
                         "parameter {} to have have {} or {} dimensions "
                         "but got {} dimensions".format(
@@ -191,7 +190,7 @@ def _CvxpyLayerFn(
                 # validate the parameter shape
                 p_shape = p.shape if batch_size == 0 else p.shape[1:]
                 if not np.all(p_shape == param_order[i].shape):
-                    raise RuntimeError(
+                    raise ValueError(
                         "Inconsistent parameter shapes passed in. "
                         "Expected parameter {} to have non-batched shape of "
                         "{} but got {}.".format(
@@ -206,7 +205,7 @@ def _CvxpyLayerFn(
                 nonzero_batch_sizes = ctx.batch_sizes[ctx.batch_sizes > 0]
                 ctx.batch_size = nonzero_batch_sizes[0]
                 if np.any(nonzero_batch_sizes != ctx.batch_size):
-                    raise RuntimeError(
+                    raise ValueError(
                         "Inconsistent batch sizes passed in. Expected "
                         "parameters to have no batch size or all the same "
                         "batch size but got sizes: {}.".format(
