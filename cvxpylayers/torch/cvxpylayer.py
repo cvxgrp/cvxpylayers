@@ -177,7 +177,10 @@ def _CvxpyLayerFn(
                     batch_size = 0
                 elif p.ndimension() == q.ndim + 1:
                     batch_size = p.size(0)
-                    assert batch_size > 0
+                    if batch_size == 0:
+                        raise ValueError(
+                            "The batch dimension for parameter {} is zero "
+                            "but should be non-zero.".format(i))
                 else:
                     raise ValueError(
                         "Invalid parameter size passed in. Expected "
