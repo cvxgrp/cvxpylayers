@@ -111,8 +111,8 @@ class TestCvxpyLayer(unittest.TestCase):
             return np.sum(x.value)
 
         numgradG, numgradh = numerical_grad(f, [G, h], [G_t, h_t])
-        np.testing.assert_almost_equal(gradG, numgradG, decimal=4)
-        np.testing.assert_almost_equal(gradh, numgradh, decimal=4)
+        np.testing.assert_almost_equal(gradG, numgradG, decimal=3)
+        np.testing.assert_almost_equal(gradh, numgradh, decimal=3)
 
     def test_simple_qp_with_solver_args(self):
         np.random.seed(0)
@@ -154,8 +154,8 @@ class TestCvxpyLayer(unittest.TestCase):
             return np.sum(x.value)
 
         numgradG, numgradh = numerical_grad(f, [G, h], [G_t, h_t])
-        np.testing.assert_almost_equal(gradG, numgradG, decimal=4)
-        np.testing.assert_almost_equal(gradh, numgradh, decimal=4)
+        np.testing.assert_almost_equal(gradG, numgradG, decimal=3)
+        np.testing.assert_almost_equal(gradh, numgradh, decimal=3)
 
     def test_simple_qp_batched(self):
         np.random.seed(0)
@@ -356,6 +356,39 @@ class TestCvxpyLayer(unittest.TestCase):
         numgrads = numerical_grad(f, [C] + A + b, values, delta=1e-4)
         for g, ng in zip(grads, numgrads):
             np.testing.assert_allclose(g, ng, atol=1e-1)
+
+    def test_broadcasting(self):
+        tf.random.set_seed(243)
+        n_batch, m, n = 2, 500, 20
+
+        A = cp.Parameter((m, n))
+        b = cp.Parameter(m)
+        x = cp.Variable(n)
+        obj = cp.sum_squares(A@x - b) + cp.sum_squares(x)
+        prob = cp.Problem(cp.Minimize(obj))
+        prob_tf = CvxpyLayer(prob, [A, b], [x])
+
+        A_tf = tf.Variable(tf.random.normal((m, n), dtype=tf.float64))
+        b_tf = tf.random.normal([m], dtype=tf.float64)
+        b_tf = tf.Variable(tf.stack([b_tf for _ in range(n_batch)]))
+        b_tf_0 = tf.Variable(b_tf[0])
+
+        with tf.GradientTape() as tape:
+            x = prob_tf(A_tf, b_tf, solver_args={"eps": 1e-12})[0]
+        grad_A_cvxpy, grad_b_cvxpy = tape.gradient(x, [A_tf, b_tf])
+
+        with tf.GradientTape() as tape:
+            x_lstsq = tf.linalg.lstsq(A_tf, tf.expand_dims(b_tf_0, 1))
+        grad_A_lstsq, grad_b_lstsq = tape.gradient(x_lstsq, [A_tf, b_tf_0])
+        grad_A_lstsq = tf.cast(grad_A_lstsq, tf.float64)
+        grad_b_lstsq = tf.cast(grad_b_lstsq, tf.float64)
+
+        self.assertAlmostEqual(
+            tf.linalg.norm(grad_A_cvxpy / n_batch - grad_A_lstsq).numpy(),
+            0.0, places=2)
+        self.assertAlmostEqual(
+            tf.linalg.norm(grad_b_cvxpy[0] - grad_b_lstsq).numpy(), 0.0,
+            places=2)
 
 
 if __name__ == '__main__':
