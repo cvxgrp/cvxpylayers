@@ -4,6 +4,8 @@ import cvxpy as cp
 from cvxpy.reductions.solvers.conic_solvers.scs_conif import \
     dims_to_solver_dict
 import numpy as np
+import multiprocessing as mp
+from multiprocessing.pool import ThreadPool
 
 try:
     import torch
@@ -109,6 +111,34 @@ class CvxpyLayer(torch.nn.Module):
                              'parameter; received %d tensors, expected %d' % (
                                  len(params), len(self.param_ids)))
         info = {}
+
+        n_jobs_forward = solver_args.get('n_jobs_forward', -1)
+        n_jobs_backward = solver_args.get('n_jobs_backward', -1)
+        if n_jobs_forward == -1:
+            n_jobs_forward = mp.cpu_count()
+        if n_jobs_backward == -1:
+            n_jobs_backward = mp.cpu_count()
+
+        if n_jobs_forward != 1:
+            if hasattr(self, "pool_forward"):
+                forward_threads = len(self.pool_forward._pool)
+                if forward_threads != n_jobs_forward:
+                    self.pool_forward.close()
+                    self.pool_forward = ThreadPool(n_jobs_forward)
+            else:
+                self.pool_forward = ThreadPool(n_jobs_forward)
+            solver_args["pool_forward"] = self.pool_forward
+
+        if n_jobs_backward != 1:
+            if hasattr(self, "pool_backward"):
+                backward_threads = len(self.pool_backward._pool)
+                if backward_threads != n_jobs_backward:
+                    self.pool_backward.close()
+                    self.pool_backward = ThreadPool(n_jobs_backward)
+            else:
+                self.pool_backward = ThreadPool(n_jobs_backward)
+            solver_args["pool_backward"] = self.pool_backward
+
         f = _CvxpyLayerFn(
             param_order=self.param_order,
             param_ids=self.param_ids,
