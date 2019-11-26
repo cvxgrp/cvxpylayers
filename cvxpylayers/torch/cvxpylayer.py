@@ -77,6 +77,10 @@ class CvxpyLayer(torch.nn.Module):
         if not set(variables).issubset(set(problem.variables())):
             raise ValueError("Argument variables must be a subset of "
                              "problem.variables")
+        assert isinstance(parameters, list), \
+          "The layer's parameters must be provided as a list"
+        assert isinstance(variables, list), \
+          "The layer's variables must be provided as a list"
 
         self.param_order = parameters
         self.param_ids = [p.id for p in self.param_order]
