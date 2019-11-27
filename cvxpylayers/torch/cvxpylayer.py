@@ -77,10 +77,12 @@ class CvxpyLayer(torch.nn.Module):
         if not set(variables).issubset(set(problem.variables())):
             raise ValueError("Argument variables must be a subset of "
                              "problem.variables")
-        if not isinstance(parameters, list) and not isinstance(parameters, tuple):
+        if not isinstance(parameters, list) and \
+           not isinstance(parameters, tuple):
             raise ValueError("The layer's parameters must be provided as "
                              "a list or tuple")
-        if not isinstance(variables, list) and not isinstance(variables, tuple):
+        if not isinstance(variables, list) and \
+           not isinstance(variables, tuple):
             raise ValueError("The layer's variables must be provided as "
                              "a list or tuple")
 
