@@ -192,9 +192,17 @@ class CvxpyLayer(object):
             bs.append(b)
             cs.append(c)
 
-        xs, _, ss, _, DT = diffcp.solve_and_derivative_batch(
-            As=As, bs=bs, cs=cs, cone_dicts=[self.cones] * batch_size,
-            **solver_args)
+        try:
+            xs, _, ss, _, DT = diffcp.solve_and_derivative_batch(
+                As=As, bs=bs, cs=cs, cone_dicts=[self.cones] * batch_size,
+                **solver_args)
+        except diffcp.SolverError as e:
+            print(
+                "Please consider re-formulating your problem so that "
+                "it is always solvable or increasing the number of "
+                "solver iterations.")
+            raise e
+
         DT = self._restrict_DT_to_dx(DT, batch_size, ss[0].shape)
         solns = [self._split_solution(x) for x in xs]
         # soln[i] is a tensor with first dimension equal to batch_size, holding

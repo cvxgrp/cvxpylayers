@@ -250,7 +250,8 @@ def _CvxpyLayerFn(
             except diffcp.SolverError as e:
                 print(
                     "Please consider re-formulating your problem so that "
-                    "it is always solvable.")
+                    "it is always solvable or increasing the number of "
+                    "solver iterations.")
                 raise e
             info['solve_time'] = time.time() - start
 
