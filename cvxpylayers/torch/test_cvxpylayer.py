@@ -257,8 +257,10 @@ class TestCvxpyLayer(unittest.TestCase):
         prob = cp.Problem(cp.Minimize(param), [x >= 1, x <= -1])
         layer = CvxpyLayer(prob, [param], [x])
         param_tch = torch.ones(1)
-        with self.assertRaises(diffcp.SolverError):
+        with self.assertRaises(diffcp.SolverError) as cm:
             layer(param_tch)
+        excpt = cm.exception
+        assert "Please consider re-formulating your" in excpt.args[0]
 
     def test_unbounded(self):
         x = cp.Variable(1)
@@ -266,8 +268,10 @@ class TestCvxpyLayer(unittest.TestCase):
         prob = cp.Problem(cp.Minimize(x), [x <= param])
         layer = CvxpyLayer(prob, [param], [x])
         param_tch = torch.ones(1)
-        with self.assertRaises(diffcp.SolverError):
+        with self.assertRaises(diffcp.SolverError) as cm:
             layer(param_tch)
+        excpt = cm.exception
+        assert "Please consider re-formulating your" in excpt.args[0]
 
     def test_incorrect_parameter_shape(self):
         set_seed(243)

@@ -247,11 +247,9 @@ def _CvxpyLayerFn(
             try:
                 xs, _, _, _, ctx.DT_batch = diffcp.solve_and_derivative_batch(
                     As, bs, cs, cone_dicts, **solver_args)
-            except diffcp.SolverError as e:
-                print(
-                    "Please consider re-formulating your problem so that "
-                    "it is always solvable.")
-                raise e
+            except diffcp.SolverError:
+                raise diffcp.SolverError("Please consider re-formulating your "
+                                         "problem so that it is always solvable.")
             info['solve_time'] = time.time() - start
 
             # extract solutions and append along batch dimension
