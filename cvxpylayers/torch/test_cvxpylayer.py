@@ -9,6 +9,8 @@ from torch.autograd import grad
 from cvxpylayers.torch import CvxpyLayer
 import diffcp
 
+torch.set_default_dtype(torch.double)
+
 
 def set_seed(x):
     npr.seed(x)
@@ -60,7 +62,6 @@ class TestCvxpyLayer(unittest.TestCase):
 
         prob_tch = CvxpyLayer(prob, [P_sqrt, q, A, b], [x])
 
-        torch.set_default_tensor_type(torch.DoubleTensor)
         P_sqrt_tch = torch.randn(batch_size, n, n, requires_grad=True)
         q_tch = torch.randn(batch_size, n, 1, requires_grad=True)
         A_tch = torch.randn(batch_size, m, n, requires_grad=True)
@@ -166,16 +167,16 @@ class TestCvxpyLayer(unittest.TestCase):
         A_tch, b_tch, F_tch, g_tch = map(
             lambda x: torch.from_numpy(x).requires_grad_(True), [
                 A_np, b_np, F_np, g_np])
-        torch.autograd.gradcheck(lambda *x: layer(*x,
-                                 solver_args={"eps": 1e-12,
+        torch.autograd.gradcheck(
+            lambda *x: layer(*x, solver_args={"eps": 1e-12,
                                               "max_iters": 10000}),
-                                 (A_tch,
-                                  b_tch,
-                                  F_tch,
-                                  g_tch),
-                                 eps=1e-4,
-                                 atol=1e-3,
-                                 rtol=1e-3)
+            (A_tch,
+             b_tch,
+             F_tch,
+             g_tch),
+            eps=1e-4,
+            atol=1e-3,
+            rtol=1e-3)
 
     def test_lml(self):
         set_seed(1)
@@ -287,13 +288,13 @@ class TestCvxpyLayer(unittest.TestCase):
             prob_th(A_th, b_th)
 
         A_th = torch.randn(32, m, n).double().requires_grad_()
-        b_th = torch.randn(32, 2*m).double().requires_grad_()
+        b_th = torch.randn(32, 2 * m).double().requires_grad_()
 
         with self.assertRaises(ValueError):
             prob_th(A_th, b_th)
 
         A_th = torch.randn(m, n).double().requires_grad_()
-        b_th = torch.randn(2*m).double().requires_grad_()
+        b_th = torch.randn(2 * m).double().requires_grad_()
 
         with self.assertRaises(ValueError):
             prob_th(A_th, b_th)
@@ -335,7 +336,7 @@ class TestCvxpyLayer(unittest.TestCase):
 
         self.assertAlmostEqual(
             torch.norm(
-                grad_A_cvxpy/n_batch -
+                grad_A_cvxpy / n_batch -
                 grad_A_lstsq).item(),
             0.0)
         self.assertAlmostEqual(
@@ -343,6 +344,44 @@ class TestCvxpyLayer(unittest.TestCase):
                 grad_b_cvxpy[0] -
                 grad_b_lstsq).item(),
             0.0)
+
+    def test_shared_parameter(self):
+        set_seed(243)
+        m, n = 10, 5
+
+        A = cp.Parameter((m, n))
+        x = cp.Variable(n)
+        b1 = np.random.randn(m)
+        b2 = np.random.randn(m)
+        prob1 = cp.Problem(cp.Minimize(cp.sum_squares(A @ x - b1)))
+        layer1 = CvxpyLayer(prob1, parameters=[A], variables=[x])
+        prob2 = cp.Problem(cp.Minimize(cp.sum_squares(A @ x - b2)))
+        layer2 = CvxpyLayer(prob2, parameters=[A], variables=[x])
+
+        A_tch = torch.randn(m, n, requires_grad=True)
+        solver_args = {
+            "eps": 1e-10,
+            "acceleration_lookback": 0,
+            "max_iters": 10000
+        }
+
+        torch.autograd.gradcheck(lambda A: torch.cat(
+            [layer1(A, solver_args=solver_args)[0],
+             layer2(A, solver_args=solver_args)[0]]), (A_tch,))
+
+    def test_equality(self):
+        set_seed(243)
+        n = 10
+        A = np.eye(n)
+        x = cp.Variable(n)
+        b = cp.Parameter(n)
+        prob = cp.Problem(cp.Minimize(cp.sum_squares(x)), [A@x == b])
+        layer = CvxpyLayer(prob, parameters=[b], variables=[x])
+        b_tch = torch.randn(n, requires_grad=True)
+        torch.autograd.gradcheck(lambda b: layer(
+            b, solver_args={"eps": 1e-10,
+                            "acceleration_lookback": 0})[0].sum(),
+            (b_tch,))
 
 
 if __name__ == '__main__':
