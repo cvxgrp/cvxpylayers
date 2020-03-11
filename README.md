@@ -19,6 +19,14 @@ For an informal introduction to convex optimization layers, see our
 Our package uses [CVXPY](https://github.com/cvxgrp/cvxpy) for specifying
 parametrized convex optimization problems.
 
+- [Installation](#installation)
+- [Usage](#usage)
+- [Examples](#examples)
+- [Contributing](#contributing)
+- [Projects using cvxpylayers](#projects-using-cvxpylayers)
+- [License](#contributing)
+- [Citing](#citing)
+
 ## Installation
 
 Use the package manager [pip](https://pip.pypa.io/en/stable/) to install
@@ -72,7 +80,7 @@ solution, = cvxpylayer(A_tch, b_tch)
 solution.sum().backward()
 ```
 
-### TensorFlow 2.0
+### TensorFlow 2
 ```python
 import cvxpy as cp
 import tensorflow as tf
@@ -115,7 +123,7 @@ pip install flake8  # if not already installed
 flake8
 ```
 
-## Running tests
+### Running tests
 
 cvxpylayers uses the `pytest` framework for running tests.
 To install `pytest`, run:
@@ -123,19 +131,19 @@ To install `pytest`, run:
 pip install pytest
 ```
 
-### PyTorch
-
 To run the tests for `torch`, in the main directory of this repository, run:
 ```bash
 pytest cvxpylayers/torch
 ``` 
 
-### TensorFlow
-
 To run the tests for `tensorflow`, in the main directory of this repository, run:
 ```bash
 pytest cvxpylayers/tensorflow
 ```
+
+## Projects using cvxpylayers
+Below is  a list of projects using cvxpylayers. If you have used cvxpylayers in a project, you're welcome to make a PR to add it to this list.
+* [Learning Convex Optimization Control Policies](http://web.stanford.edu/~boyd/papers/learning_cocps.html)
 
 ## License
 cvxpylayers carries an Apache 2.0 license.
