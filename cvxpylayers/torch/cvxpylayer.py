@@ -54,7 +54,7 @@ class CvxpyLayer(torch.nn.Module):
         ```
     """
 
-    def __init__(self, problem, parameters, variables):
+    def __init__(self, problem, parameters, variables, gp=False):
         """Construct a CvxpyLayer
 
         Args:
@@ -66,11 +66,18 @@ class CvxpyLayer(torch.nn.Module):
           variables: A list of CVXPY Variables in the problem; the order of the
                      Variables determines the order of the optimal variable
                      values returned from the forward pass.
+          gp: Whether to parse the problem using DGP (True or False).
         """
         super(CvxpyLayer, self).__init__()
 
-        if not problem.is_dpp():
-            raise ValueError('Problem must be DPP.')
+        self.gp = gp
+        if self.gp:
+            if not problem.is_dgp(dpp=True):
+                raise ValueError('Problem must be DPP.')
+        else:
+            if not problem.is_dcp(dpp=True):
+                raise ValueError('Problem must be DPP.')
+
         if not set(problem.parameters()) == set(parameters):
             raise ValueError("The layer's parameters must exactly match "
                              "problem.parameters")
@@ -87,13 +94,26 @@ class CvxpyLayer(torch.nn.Module):
                              "a list or tuple")
 
         self.param_order = parameters
-        self.param_ids = [p.id for p in self.param_order]
         self.variables = variables
         self.var_dict = {v.id for v in self.variables}
 
         # Construct compiler
-        data, _, _ = problem.get_problem_data(solver=cp.SCS)
-        self.compiler = data[cp.settings.PARAM_PROB]
+        self.dgp2dcp = None
+
+        if self.gp:
+            for param in parameters:
+                if param.value is None:
+                    raise ValueError("An initial value for each parameter is "
+                                     "required when gp=True.")
+            data, solving_chain, _ = problem.get_problem_data(
+                solver=cp.SCS, gp=True)
+            self.compiler = data[cp.settings.PARAM_PROB]
+            self.dgp2dcp = solving_chain.get(cp.reductions.Dgp2Dcp)
+            self.param_ids = [p.id for p in self.compiler.parameters]
+        else:
+            data, _, _ = problem.get_problem_data(solver=cp.SCS)
+            self.compiler = data[cp.settings.PARAM_PROB]
+            self.param_ids = [p.id for p in self.param_order]
         self.cone_dims = dims_to_solver_dict(data["dims"])
 
     def forward(self, *params, solver_args={}):
@@ -124,6 +144,8 @@ class CvxpyLayer(torch.nn.Module):
             var_dict=self.var_dict,
             compiler=self.compiler,
             cone_dims=self.cone_dims,
+            gp=self.gp,
+            dgp2dcp=self.dgp2dcp,
             solver_args=solver_args,
             info=info,
         )
@@ -149,13 +171,13 @@ def _CvxpyLayerFn(
         var_dict,
         compiler,
         cone_dims,
+        gp,
+        dgp2dcp,
         solver_args,
         info):
     class _CvxpyLayerFnFn(torch.autograd.Function):
         @staticmethod
         def forward(ctx, *params):
-            params_numpy = [to_numpy(p) for p in params]
-
             # infer dtype, device, and whether or not params are batched
             ctx.dtype = params[0].dtype
             ctx.device = params[0].device
@@ -224,6 +246,24 @@ def _CvxpyLayerFn(
             else:
                 ctx.batch_size = 1
 
+            if gp:
+                ctx.params = params
+                ctx.old_params_to_new_params = (
+                    dgp2dcp.canon_methods._parameters
+                )
+                param_map = {}
+                # construct a list of params for the DCP problem
+                for param, value in zip(param_order, params):
+                    if param in ctx.old_params_to_new_params:
+                        new_id = ctx.old_params_to_new_params[param].id
+                        param_map[new_id] = torch.log(value)
+                    else:
+                        new_id = param.id
+                        param_map[new_id] = value
+                params_numpy = [to_numpy(param_map[pid]) for pid in param_ids]
+            else:
+                params_numpy = [to_numpy(p) for p in params]
+
             # canonicalize problem
             start = time.time()
             As, bs, cs, cone_dicts, ctx.shapes = [], [], [], [], []
@@ -268,10 +308,18 @@ def _CvxpyLayerFn(
             if not ctx.batch:
                 sol = [s.squeeze(0) for s in sol]
 
+            if gp:
+                sol = [torch.exp(s) for s in sol]
+                ctx.sol = sol
+
             return tuple(sol)
 
         @staticmethod
         def backward(ctx, *dvars):
+            if gp:
+                # derivative of exponential recovery transformation
+                dvars = [dvar*s for dvar, s in zip(dvars, ctx.sol)]
+
             dvars_numpy = [to_numpy(dvar) for dvar in dvars]
 
             if not ctx.batch:
@@ -291,14 +339,27 @@ def _CvxpyLayerFn(
 
             # differentiate from cone problem data to cvxpy parameters
             start = time.time()
-            grad = [[] for _ in range(len(param_order))]
+            grad = [[] for _ in range(len(param_ids))]
             for i in range(ctx.batch_size):
                 del_param_dict = compiler.apply_param_jac(
                     dcs[i], -dAs[i], dbs[i])
-                for j, p in enumerate(param_order):
-                    grad[j] += [to_torch(del_param_dict[p.id],
+                for j, pid in enumerate(param_ids):
+                    grad[j] += [to_torch(del_param_dict[pid],
                                          ctx.dtype, ctx.device).unsqueeze(0)]
             grad = [torch.cat(g, 0) for g in grad]
+
+            if gp:
+                # differentiate through the log transformation of params
+                dcp_grad = grad
+                grad = []
+                dparams = {pid: g for pid, g in zip(param_ids, dcp_grad)}
+                for param, value in zip(param_order, ctx.params):
+                    g = 0.0 if param.id not in dparams else dparams[param.id]
+                    if param in ctx.old_params_to_new_params:
+                        dcp_param_id = ctx.old_params_to_new_params[param].id
+                        # new_param.value == log(param), apply chain rule
+                        g += (1.0 / value) * dparams[dcp_param_id]
+                    grad.append(g)
             info['dcanon_time'] = time.time() - start
 
             if not ctx.batch:

@@ -9,7 +9,7 @@ from cvxpylayers.tensorflow import CvxpyLayer
 
 
 def numerical_grad(f, params, param_values, delta=1e-6):
-    size = sum(np.prod(v.shape) for v in param_values)
+    size = int(sum(np.prod(v.shape) for v in param_values))
     values = np.zeros(size)
     offset = 0
     for param, value in zip(params, param_values):
@@ -356,6 +356,40 @@ class TestCvxpyLayer(unittest.TestCase):
         numgrads = numerical_grad(f, [C] + A + b, values, delta=1e-4)
         for g, ng in zip(grads, numgrads):
             np.testing.assert_allclose(g, ng, atol=1e-1)
+
+    def test_basic_gp(self):
+        tf.random.set_seed(243)
+
+        x = cp.Variable(pos=True)
+        y = cp.Variable(pos=True)
+        z = cp.Variable(pos=True)
+
+        a = cp.Parameter(pos=True, value=2.0)
+        b = cp.Parameter(pos=True, value=1.0)
+        c = cp.Parameter(value=0.5)
+
+        objective_fn = 1/(x*y*z)
+        constraints = [a*(x*y + x*z + y*z) <= b, x >= y**c]
+        problem = cp.Problem(cp.Minimize(objective_fn), constraints)
+        problem.solve(cp.SCS, gp=True, eps=1e-12)
+
+        layer = CvxpyLayer(
+            problem, parameters=[a, b, c], variables=[x, y, z], gp=True)
+        a_tf = tf.Variable(2.0, dtype=tf.float64)
+        b_tf = tf.Variable(1.0, dtype=tf.float64)
+        c_tf = tf.Variable(0.5, dtype=tf.float64)
+        with tf.GradientTape() as tape:
+            x_tf, y_tf, z_tf = layer(a_tf, b_tf, c_tf)
+            summed = x_tf + y_tf + z_tf
+        grads = tape.gradient(summed, [a_tf, b_tf, c_tf])
+
+        def f():
+            problem.solve(cp.SCS, eps=1e-12, max_iters=10000, gp=True)
+            return x.value + y.value + z.value
+
+        numgrads = numerical_grad(f, [a, b, c], [a_tf, b_tf, c_tf])
+        for g, ng in zip(grads, numgrads):
+            np.testing.assert_allclose(g, ng, atol=1e-2)
 
     def test_broadcasting(self):
         tf.random.set_seed(243)

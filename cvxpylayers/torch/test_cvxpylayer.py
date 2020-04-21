@@ -383,6 +383,42 @@ class TestCvxpyLayer(unittest.TestCase):
                             "acceleration_lookback": 0})[0].sum(),
             (b_tch,))
 
+    def test_basic_gp(self):
+        set_seed(243)
+
+        x = cp.Variable(pos=True)
+        y = cp.Variable(pos=True)
+        z = cp.Variable(pos=True)
+
+        a = cp.Parameter(pos=True, value=2.0)
+        b = cp.Parameter(pos=True, value=1.0)
+        c = cp.Parameter(value=0.5)
+
+        objective_fn = 1/(x*y*z)
+        constraints = [a*(x*y + x*z + y*z) <= b, x >= y**c]
+        problem = cp.Problem(cp.Minimize(objective_fn), constraints)
+        problem.solve(cp.SCS, gp=True, eps=1e-12)
+
+        layer = CvxpyLayer(
+            problem, parameters=[a, b, c], variables=[x, y, z], gp=True)
+        a_tch = torch.tensor(2.0, requires_grad=True)
+        b_tch = torch.tensor(1.0, requires_grad=True)
+        c_tch = torch.tensor(0.5, requires_grad=True)
+        x, y, z = layer(a_tch, b_tch, c_tch)
+        summed = x + y + z
+        summed.backward()
+
+        with torch.no_grad():
+            x_val, y_val, z_val = layer(a_tch, b_tch, c_tch)
+        self.assertAlmostEqual(x.value, x_val.numpy(), places=5)
+        self.assertAlmostEqual(y.value, y_val.numpy(), places=5)
+        self.assertAlmostEqual(z.value, z_val.numpy(), places=5)
+
+        torch.autograd.gradcheck(lambda a, b, c: layer(
+            a, b, c, solver_args={
+                "eps": 1e-12, "acceleration_lookback": 0})[0].sum(),
+                (a_tch, b_tch, c_tch), atol=1e-3, rtol=1e-3)
+
 
 if __name__ == '__main__':
     unittest.main()
