@@ -404,15 +404,12 @@ class TestCvxpyLayer(unittest.TestCase):
         a_tch = torch.tensor(2.0, requires_grad=True)
         b_tch = torch.tensor(1.0, requires_grad=True)
         c_tch = torch.tensor(0.5, requires_grad=True)
-        x, y, z = layer(a_tch, b_tch, c_tch)
-        summed = x + y + z
-        summed.backward()
-
         with torch.no_grad():
-            x_val, y_val, z_val = layer(a_tch, b_tch, c_tch)
-        self.assertAlmostEqual(x.value, x_val.numpy(), places=5)
-        self.assertAlmostEqual(y.value, y_val.numpy(), places=5)
-        self.assertAlmostEqual(z.value, z_val.numpy(), places=5)
+            x_tch, y_tch, z_tch = layer(a_tch, b_tch, c_tch)
+
+        self.assertAlmostEqual(x.value, x_tch.detach().numpy(), places=5)
+        self.assertAlmostEqual(y.value, y_tch.detach().numpy(), places=5)
+        self.assertAlmostEqual(z.value, z_tch.detach().numpy(), places=5)
 
         torch.autograd.gradcheck(lambda a, b, c: layer(
             a, b, c, solver_args={
