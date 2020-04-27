@@ -44,7 +44,7 @@ separately, which can be done by following the instructions on their websites.
 cvxpylayers has the following dependencies:
 * Python 3
 * [NumPy](https://pypi.org/project/numpy/)
-* [CVXPY](https://github.com/cvxgrp/cvxpy) >= 1.1.a1
+* [CVXPY](https://github.com/cvxgrp/cvxpy) >= 1.1.a4
 * [TensorFlow](https://tensorflow.org) >= 2.0 or [PyTorch](https://pytorch.org) >= 1.0
 * [diffcp](https://github.com/cvxgrp/diffcp) >= 1.0.13
 

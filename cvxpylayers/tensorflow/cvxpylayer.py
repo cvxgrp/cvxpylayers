@@ -55,7 +55,7 @@ class CvxpyLayer(object):
         ```
     """
 
-    def __init__(self, problem, parameters, variables):
+    def __init__(self, problem, parameters, variables, gp=False):
         """Construct a CvxpyLayer
 
         Args:
@@ -66,22 +66,40 @@ class CvxpyLayer(object):
           variables: A list of CVXPY Variables in the problem; the order of the
                      Variables determines the order of the optimal variable
                      values returned from the forward pass.
+          gp: Whether to parse the problem using DGP (True or False).
         """
-        if not problem.is_dpp():
-            raise ValueError('Problem must be DPP.')
+        if gp:
+            if not problem.is_dgp(dpp=True):
+                raise ValueError('Problem must be DPP.')
+        else:
+            if not problem.is_dcp(dpp=True):
+                raise ValueError('Problem must be DPP.')
         if set(parameters) != set(problem.parameters()):
             raise ValueError("The layer's parameters must exactly match "
                              "problem.parameters")
         if not set(variables).issubset(set(problem.variables())):
             raise ValueError('Argument `variables` must be a subset of '
                              '`problem.variables()`')
-
-        data, _, _ = problem.get_problem_data(solver=cp.SCS)
-
-        self.asa_maps = data[cp.settings.PARAM_PROB]
-        self.cones = utils.dims_to_solver_dict(data['dims'])
         self.params = parameters
-        self.param_ids = [p.id for p in self.params]
+        self.gp = gp
+
+        if self.gp:
+            for param in parameters:
+                if param.value is None:
+                    raise ValueError("An initial value for each parameter is "
+                                     "required when gp=True.")
+            data, solving_chain, _ = (
+                problem.get_problem_data(solver=cp.SCS, gp=True)
+            )
+            self.asa_maps = data[cp.settings.PARAM_PROB]
+            self.dgp2dcp = solving_chain.get(cp.reductions.Dgp2Dcp)
+            self.param_ids = [p.id for p in self.asa_maps.parameters]
+        else:
+            data, _, _ = problem.get_problem_data(solver=cp.SCS)
+            self.asa_maps = data[cp.settings.PARAM_PROB]
+            self.param_ids = [p.id for p in self.params]
+
+        self.cones = utils.dims_to_solver_dict(data['dims'])
         self.vars = variables
 
     def __call__(self, *parameters, solver_args={}):
@@ -132,6 +150,7 @@ class CvxpyLayer(object):
         return tuple([tf.constant(soln[v.id]) for v in self.vars])
 
     def _compute(self, params, solver_args={}):
+        tf_params = params
         params = [p.numpy() for p in params]
 
         # infer whether params are batched
@@ -183,6 +202,19 @@ class CvxpyLayer(object):
         else:
             batch_size = 1
 
+        if self.gp:
+            old_params_to_new_params = self.dgp2dcp.canon_methods._parameters
+            param_map = {}
+            # construct a list of params for the DCP problem
+            for param, value in zip(self.params, params):
+                if param in old_params_to_new_params:
+                    new_id = old_params_to_new_params[param].id
+                    param_map[new_id] = np.log(value)
+                else:
+                    new_id = param.id
+                    param_map[new_id] = value
+            params = [param_map[pid] for pid in self.param_ids]
+
         As, bs, cs = [], [], []
         for i in range(batch_size):
             params_i = [
@@ -212,7 +244,13 @@ class CvxpyLayer(object):
         if not any_batched:
             solution = [tf.squeeze(s, 0) for s in solution]
 
+        if self.gp:
+            solution = [tf.exp(s) for s in solution]
+
         def gradient_function(*dsoln):
+            if self.gp:
+                dsoln = [dsoln*s for dsoln, s in zip(dsoln, solution)]
+
             if not any_batched:
                 dsoln = [tf.expand_dims(dvar, 0) for dvar in dsoln]
 
@@ -230,9 +268,9 @@ class CvxpyLayer(object):
                 self.asa_maps.apply_param_jac(dc, -dA, db) for
                 (dA, db, dc) in zip(dAs, dbs, dcs)]
             dparams = []
-            for p in self.params:
+            for pid in self.param_ids:
                 dparams.append(
-                    tf.constant([d[p.id] for d in dparams_dict_unbatched]))
+                    tf.constant([d[pid] for d in dparams_dict_unbatched]))
 
             if not any_batched:
                 dparams = tuple(tf.squeeze(dparam, 0) for dparam in dparams)
@@ -240,6 +278,22 @@ class CvxpyLayer(object):
                 for i, sz in enumerate(batch_sizes):
                     if sz == 0:
                         dparams[i] = tf.reduce_sum(dparams[i], axis=0)
+
+            if self.gp:
+                # differentiate through the log transformation of params
+                dcp_dparams = dparams
+                dparams = []
+                grads = {pid: g for pid, g in zip(self.param_ids, dcp_dparams)}
+                old_params_to_new_params = (
+                    self.dgp2dcp.canon_methods._parameters
+                )
+                for param, value in zip(self.params, tf_params):
+                    g = 0.0 if param.id not in grads else grads[param.id]
+                    if param in old_params_to_new_params:
+                        dcp_param_id = old_params_to_new_params[param].id
+                        # new_param.value == log(param), apply chain rule
+                        g = g + (1.0 / value) * grads[dcp_param_id]
+                    dparams.append(g)
             return tuple(dparams)
 
         return solution, gradient_function
