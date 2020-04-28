@@ -107,6 +107,8 @@ with tf.GradientTape() as tape:
 gradA, gradb = tape.gradient(summed_solution, [A_tf, b_tf])
 ```
 
+Starting with version 0.1.3, cvxpylayers can also differentiate through log-log convex programs (LLCPs), which generalize geometric programs. Use the keyword argument `gp=True` when constructing a `CvxpyLayer` for an LLCP.
+
 ## Examples
 Our [examples](examples) subdirectory contains simple applications of convex optimization
 layers in IPython notebooks.
@@ -157,5 +159,19 @@ If you use cvxpylayers for research, please cite our accompanying [NeurIPS paper
   title={Differentiable Convex Optimization Layers},
   booktitle={Advances in Neural Information Processing Systems},
   year={2019},
+}
+```
+
+If you use cvxpylayers to differentiate through a log-log convex program, please cite the accompanying [paper](http://web.stanford.edu/~boyd/papers/diff_dgp.html):
+
+```
+@article{agrawal2020differentiating,
+  title={Differentiating through log-log convex programs},
+  author={Agrawal, Akshay and Boyd, Stephen},
+  journal={arXiv},
+  archivePrefix={arXiv},
+  eprint={2004.12553},
+  primaryClass={math.OC},
+  year={2020},
 }
 ```
