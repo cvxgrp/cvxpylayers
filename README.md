@@ -162,7 +162,7 @@ If you use cvxpylayers for research, please cite our accompanying [NeurIPS paper
 }
 ```
 
-If you use cvxpylayers to differentiate through a log-log convex program, please cite the accompanying [paper](http://web.stanford.edu/~boyd/papers/pdf/diff_dgp.pdf):
+If you use cvxpylayers to differentiate through a log-log convex program, please cite the accompanying [paper](http://web.stanford.edu/~boyd/papers/diff_dgp.html):
 
 ```
 @article{agrawal2020differentiating,
