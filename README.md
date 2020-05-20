@@ -80,6 +80,8 @@ solution, = cvxpylayer(A_tch, b_tch)
 solution.sum().backward()
 ```
 
+Note: `CvxpyLayer` cannot be traced with `torch.jit`.
+
 ### TensorFlow 2
 ```python
 import cvxpy as cp
@@ -107,7 +109,40 @@ with tf.GradientTape() as tape:
 gradA, gradb = tape.gradient(summed_solution, [A_tf, b_tf])
 ```
 
-Starting with version 0.1.3, cvxpylayers can also differentiate through log-log convex programs (LLCPs), which generalize geometric programs. Use the keyword argument `gp=True` when constructing a `CvxpyLayer` for an LLCP.
+Note: `CvxpyLayer` cannot be traced with `tf.function`.
+
+### Log-log convex programs
+Starting with version 0.1.3, cvxpylayers can also differentiate through log-log convex programs (LLCPs), which generalize geometric programs. Use the keyword argument `gp=True` when constructing a `CvxpyLayer` for an LLCP. Below is a simple usage example
+
+```python
+import cvxpy as cp
+import torch
+from cvxpylayers.torch import CvxpyLayer
+                                        
+x = cp.Variable(pos=True)
+y = cp.Variable(pos=True)
+z = cp.Variable(pos=True)
+                                                       
+a = cp.Parameter(pos=True, value=2.)
+b = cp.Parameter(pos=True, value=1.)
+c = cp.Parameter(value=0.5)
+
+objective_fn = 1/(x*y*z)
+objective = cp.Minimize(objective_fn)
+constraints = [a*(x*y + x*z + y*z) <= b, x >= y**c]
+problem = cp.Problem(objective, constraints)
+assert problem.is_dgp(dpp=True)
+
+layer = CvxpyLayer(problem, parameters=[a, b, c],
+                   variables=[x, y, z], gp=True)
+a_tch = torch.tensor(a.value, requires_grad=True)
+b_tch = torch.tensor(b.value, requires_grad=True)
+c_tch = torch.tensor(c.value, requires_grad=True)
+
+x_star, y_star, z_star = layer(a_tch, b_tch, c_tch)
+sum_of_solution = x_star + y_star + z_star
+sum_of_solution.backward()
+```
 
 ## Examples
 Our [examples](examples) subdirectory contains simple applications of convex optimization
