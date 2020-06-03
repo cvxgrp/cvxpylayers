@@ -1,6 +1,6 @@
-from cvxpylayers import utils
-
 import cvxpy as cp
+from cvxpy.reductions.solvers.conic_solvers.scs_conif import \
+    dims_to_solver_dict
 import diffcp
 import numpy as np
 
@@ -99,7 +99,7 @@ class CvxpyLayer(object):
             self.asa_maps = data[cp.settings.PARAM_PROB]
             self.param_ids = [p.id for p in self.params]
 
-        self.cones = utils.dims_to_solver_dict(data['dims'])
+        self.cones = dims_to_solver_dict(data['dims'])
         self.vars = variables
 
     def __call__(self, *parameters, solver_args={}):
