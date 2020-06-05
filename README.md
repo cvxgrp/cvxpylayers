@@ -181,6 +181,7 @@ pytest cvxpylayers/tensorflow
 ## Projects using cvxpylayers
 Below is  a list of projects using cvxpylayers. If you have used cvxpylayers in a project, you're welcome to make a PR to add it to this list.
 * [Learning Convex Optimization Control Policies](http://web.stanford.edu/~boyd/papers/learning_cocps.html)
+* [Learning Convex Optimization Models](http://web.stanford.edu/~boyd/papers/learning_copt_models.html)
 
 ## License
 cvxpylayers carries an Apache 2.0 license.
