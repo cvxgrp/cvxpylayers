@@ -38,8 +38,8 @@ install:
 script:
   - pytest
   - flake8 cvxpylayers
-  - jupyter nbconvert --ExecutePreprocessor.timeout=None --to notebook --execute examples/torch/*.ipynb
-  - jupyter nbconvert --ExecutePreprocessor.timeout=None --to notebook --execute examples/tf/*.ipynb
+  - jupyter nbconvert --ExecutePreprocessor.timeout=None --to notebook --execute examples/torch/data_poisoning_attack.ipynb examples/torch/convex_approximate_dynamic_programming.ipynb
+  - jupyter nbconvert --ExecutePreprocessor.timeout=None --to notebook --execute examples/tf/data_poisoning_attack.ipynb examples/tf/convex_approximate_dynamic_programming.ipynb
 
 notifications:
   email:
