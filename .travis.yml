@@ -31,15 +31,15 @@ before_install:
 
 install:
   - pip install --upgrade pip
-  - pip install tensorflow pytest flake8 jupyter matplotlib sklearn
+  - pip install tensorflow pytest flake8 jupyter matplotlib sklearn tqdm
   - pip install torch==1.3.0+cpu -f https://download.pytorch.org/whl/torch_stable.html
   - pip install .
 
 script:
   - pytest
   - flake8 cvxpylayers
-  - jupyter nbconvert --ExecutePreprocessor.timeout=None --to notebook --execute examples/torch/*.ipynb
-  - jupyter nbconvert --ExecutePreprocessor.timeout=None --to notebook --execute examples/tf/*.ipynb
+  - jupyter nbconvert --ExecutePreprocessor.timeout=None --to notebook --execute examples/torch/data_poisoning_attack.ipynb examples/torch/convex_approximate_dynamic_programming.ipynb
+  - jupyter nbconvert --ExecutePreprocessor.timeout=None --to notebook --execute examples/tf/data_poisoning_attack.ipynb examples/tf/convex_approximate_dynamic_programming.ipynb
 
 notifications:
   email:

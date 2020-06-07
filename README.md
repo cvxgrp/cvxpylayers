@@ -11,7 +11,7 @@ in the forward pass to produce a solution.
 It computes the derivative of the solution with respect to
 the parameters in the backward pass.
 
-This library accompanies our [NeurIPS 2019 paper](http://web.stanford.edu/~boyd/papers/pdf/diff_cvxpy.pdf)
+This library accompanies our [NeurIPS 2019 paper](https://web.stanford.edu/~boyd/papers/pdf/diff_cvxpy.pdf)
 on differentiable convex optimization layers.
 For an informal introduction to convex optimization layers, see our
 [blog post](https://locuslab.github.io/2019-10-28-cvxpylayers/).
@@ -38,7 +38,7 @@ pip install cvxpylayers
 
 Our package includes convex optimization layers for PyTorch and TensorFlow 2.0;
 the layers are functionally equivalent. You will need to install
-[PyTorch](http://pytorch.org) or [TensorFlow](https://www.tensorflow.org)
+[PyTorch](https://pytorch.org) or [TensorFlow](https://www.tensorflow.org)
 separately, which can be done by following the instructions on their websites.
 
 cvxpylayers has the following dependencies:
@@ -180,13 +180,14 @@ pytest cvxpylayers/tensorflow
 
 ## Projects using cvxpylayers
 Below is  a list of projects using cvxpylayers. If you have used cvxpylayers in a project, you're welcome to make a PR to add it to this list.
-* [Learning Convex Optimization Control Policies](http://web.stanford.edu/~boyd/papers/learning_cocps.html)
+* [Learning Convex Optimization Control Policies](https://web.stanford.edu/~boyd/papers/learning_cocps.html)
+* [Learning Convex Optimization Models](https://web.stanford.edu/~boyd/papers/learning_copt_models.html)
 
 ## License
 cvxpylayers carries an Apache 2.0 license.
 
 ## Citing
-If you use cvxpylayers for research, please cite our accompanying [NeurIPS paper](http://web.stanford.edu/~boyd/papers/pdf/diff_cvxpy.pdf):
+If you use cvxpylayers for research, please cite our accompanying [NeurIPS paper](https://web.stanford.edu/~boyd/papers/pdf/diff_cvxpy.pdf):
 
 ```
 @inproceedings{cvxpylayers2019,
@@ -197,7 +198,7 @@ If you use cvxpylayers for research, please cite our accompanying [NeurIPS paper
 }
 ```
 
-If you use cvxpylayers to differentiate through a log-log convex program, please cite the accompanying [paper](http://web.stanford.edu/~boyd/papers/diff_dgp.html):
+If you use cvxpylayers to differentiate through a log-log convex program, please cite the accompanying [paper](https://web.stanford.edu/~boyd/papers/diff_dgp.html):
 
 ```
 @article{agrawal2020differentiating,
