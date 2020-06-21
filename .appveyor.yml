@@ -20,12 +20,3 @@ build_script:
 
 test_script:
   - pytest
-
-notifications:
-  - provider: Email
-    to:
-      - stbarratt@gmail.com
-      - akshaykagrawal7@gmail.com
-    on_build_success: false
-    on_build_failure: true
-    on_build_status_changed: true
