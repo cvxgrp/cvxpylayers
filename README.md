@@ -149,7 +149,7 @@ sum_of_solution.backward()
 At this time, we support two open-source solvers: [SCS](https://github.com/cvxgrp/scs) and [ECOS](https://github.com/embotech/ecos).
 SCS can be used to solve any problem expressible in CVXPY; ECOS can be used to solve problems that don't use
 the positive semidefinite or exponential cone (this roughly means that if you have positive semidefinite matrices
-or use atoms like `cp.log`, ECOS cannot be used to solve your problem through CVXPY).
+or use atoms like `cp.log`, ECOS cannot be used to solve your problem via `cvxpylayers`).
 By default, `cvxpylayers` uses SCS to solve the problem.
 
 ### Using ECOS
