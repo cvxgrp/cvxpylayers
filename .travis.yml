@@ -9,10 +9,6 @@ matrix:
     language: python
     python: "3.7"
   - os: linux
-    dist: xenial
-    language: python
-    python: "3.8"
-  - os: linux
     dist: bionic
     language: python
     python: "3.6"
@@ -20,10 +16,6 @@ matrix:
     dist: bionic
     language: python
     python: "3.7"
-  - os: linux
-    dist: bionic
-    language: python
-    python: "3.8"
 
 before_install:
   - sudo apt-get install liblapack-dev
