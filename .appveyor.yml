@@ -19,4 +19,4 @@ build_script:
   - pip install .
 
 test_script:
-  - pytest
+  - pytest cvxpylayers/torch cvxpylayers/tensorflow
