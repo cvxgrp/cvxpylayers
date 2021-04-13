@@ -5,7 +5,7 @@
 # cvxpylayers
 
 cvxpylayers is a Python library for constructing differentiable convex
-optimization layers in PyTorch and TensorFlow using CVXPY.
+optimization layers in PyTorch, JAX, and TensorFlow using CVXPY.
 A convex optimization layer solves a parametrized convex optimization problem
 in the forward pass to produce a solution.
 It computes the derivative of the solution with respect to
@@ -36,28 +36,32 @@ cvxpylayers.
 pip install cvxpylayers
 ```
 
-Our package includes convex optimization layers for PyTorch and TensorFlow 2.0;
+Our package includes convex optimization layers for
+PyTorch, JAX, and TensorFlow 2.0;
 the layers are functionally equivalent. You will need to install
-[PyTorch](https://pytorch.org) or [TensorFlow](https://www.tensorflow.org)
+[PyTorch](https://pytorch.org),
+[JAX](https://github.com/google/jax), or
+[TensorFlow](https://www.tensorflow.org)
 separately, which can be done by following the instructions on their websites.
 
 cvxpylayers has the following dependencies:
 * Python 3
 * [NumPy](https://pypi.org/project/numpy/)
 * [CVXPY](https://github.com/cvxgrp/cvxpy) >= 1.1.a4
-* [TensorFlow](https://tensorflow.org) >= 2.0 or [PyTorch](https://pytorch.org) >= 1.0
+* [PyTorch](https://pytorch.org) >= 1.0, [JAX](https://github.com/google/jax) >= 0.2.12, or [TensorFlow](https://tensorflow.org) >= 2.0
 * [diffcp](https://github.com/cvxgrp/diffcp) >= 1.0.13
 
 ## Usage
-Below are usage examples of our PyTorch and TensorFlow layers. Note that
-the parametrized convex optimization problems must be constructed in CVXPY,
-using [DPP](https://www.cvxpy.org/tutorial/advanced/index.html#disciplined-parametrized-programming).
+Below are usage examples of our PyTorch, JAX, and TensorFlow layers.
+Note that the parametrized convex optimization problems must be constructed
+in CVXPY, using
+[DPP](https://www.cvxpy.org/tutorial/advanced/index.html#disciplined-parametrized-programming).
 
 ### PyTorch
 
 ```python
 import cvxpy as cp
-import torch 
+import torch
 from cvxpylayers.torch import CvxpyLayer
 
 n, m = 2, 3
@@ -81,6 +85,36 @@ solution.sum().backward()
 ```
 
 Note: `CvxpyLayer` cannot be traced with `torch.jit`.
+
+### JAX
+```python
+import cvxpy as cp
+import jax
+from cvxpylayers.jax import CvxpyLayer
+
+n, m = 2, 3
+x = cp.Variable(n)
+A = cp.Parameter((m, n))
+b = cp.Parameter(m)
+constraints = [x >= 0]
+objective = cp.Minimize(0.5 * cp.pnorm(A @ x - b, p=1))
+problem = cp.Problem(objective, constraints)
+assert problem.is_dpp()
+
+cvxpylayer = CvxpyLayer(problem, parameters=[A, b], variables=[x])
+key = jax.random.PRNGKey(0)
+key, k1, k2 = jax.random.split(key, 3)
+A_jax = jax.random.normal(k1, shape=(m, n))
+b_jax = jax.random.normal(k2, shape=(m,))
+
+solution, = cvxpylayer(A_jax, b_jax)
+
+# compute the gradient of the summed solution with respect to A, b
+dcvxpylayer = jax.grad(lambda A, b: sum(cvxpylayer(A, b)[0]), argnums=[0, 1])
+gradA, gradb = dcvxpylayer(A_jax, b_jax)
+```
+
+Note: `CvxpyLayer` cannot be traced with the JAX `jit` or `vmap` operations.
 
 ### TensorFlow 2
 ```python
@@ -118,11 +152,11 @@ Starting with version 0.1.3, cvxpylayers can also differentiate through log-log 
 import cvxpy as cp
 import torch
 from cvxpylayers.torch import CvxpyLayer
-                                        
+
 x = cp.Variable(pos=True)
 y = cp.Variable(pos=True)
 z = cp.Variable(pos=True)
-                                                       
+
 a = cp.Parameter(pos=True, value=2.)
 b = cp.Parameter(pos=True, value=1.)
 c = cp.Parameter(value=0.5)
@@ -168,14 +202,9 @@ To install `pytest`, run:
 pip install pytest
 ```
 
-To run the tests for `torch`, in the main directory of this repository, run:
+Execute the tests from the main directory of this repository with:
 ```bash
-pytest cvxpylayers/torch
-``` 
-
-To run the tests for `tensorflow`, in the main directory of this repository, run:
-```bash
-pytest cvxpylayers/tensorflow
+pytest cvxpylayers/{torch,jax,tensorflow}
 ```
 
 ## Projects using cvxpylayers
