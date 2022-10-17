@@ -178,6 +178,38 @@ sum_of_solution = x_star + y_star + z_star
 sum_of_solution.backward()
 ```
 
+## Solvers
+
+At this time, we support two open-source solvers: [SCS](https://github.com/cvxgrp/scs) and [ECOS](https://github.com/embotech/ecos).
+SCS can be used to solve any problem expressible in CVXPY; ECOS can be used to solve problems that don't use
+the positive semidefinite or exponential cone (this roughly means that if you have positive semidefinite matrices
+or use atoms like `cp.log`, ECOS cannot be used to solve your problem via `cvxpylayers`).
+By default, `cvxpylayers` uses SCS to solve the problem.
+
+### Using ECOS
+First make sure that you have `cvxpylayers` and `diffcp` up to date,
+by running
+```
+pip install --upgrade cvxpylayers diffcp
+```
+Then, to use ECOS, you would pass the `solver_args` argument to the layer:
+```
+solution = layer(*params, solver_args={"solve_method": "ECOS"})
+```
+
+### Passing arguments to the solvers
+One can pass arguments to both SCS and ECOS by adding the argument as a key-value pair
+in the `solver_args` argument.
+For example, to increase the tolerance of SCS to `1e-8` one would write:
+```
+layer(*parameters, solver_args={"eps": 1e-8})
+```
+If SCS is not converging, we highly recommend switching to ECOS (if possible),
+and if not, using the following arguments to `SCS`:
+```
+solver_args={"eps": 1e-8, "max_iters": 10000, "acceleration_lookback": 0}
+``` 
+
 ## Examples
 Our [examples](examples) subdirectory contains simple applications of convex optimization
 layers in IPython notebooks.
