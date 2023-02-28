@@ -106,12 +106,13 @@ class CvxpyLayer(torch.nn.Module):
                     raise ValueError("An initial value for each parameter is "
                                      "required when gp=True.")
             data, solving_chain, _ = problem.get_problem_data(
-                solver=cp.SCS, gp=True)
+                solver=cp.SCS, gp=True, solver_opts={'use_quad_obj': False})
             self.compiler = data[cp.settings.PARAM_PROB]
             self.dgp2dcp = solving_chain.get(cp.reductions.Dgp2Dcp)
             self.param_ids = [p.id for p in self.compiler.parameters]
         else:
-            data, _, _ = problem.get_problem_data(solver=cp.SCS)
+            data, _, _ = problem.get_problem_data(
+                solver=cp.SCS, solver_opts={'use_quad_obj': False})
             self.compiler = data[cp.settings.PARAM_PROB]
             self.param_ids = [p.id for p in self.param_order]
         self.cone_dims = dims_to_solver_dict(data["dims"])
