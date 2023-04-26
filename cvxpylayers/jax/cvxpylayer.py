@@ -65,7 +65,7 @@ def CvxpyLayer(problem, parameters, variables, gp=False):
                 raise ValueError("An initial value for each parameter is "
                                  "required when gp=True.")
         data, solving_chain, _ = problem.get_problem_data(
-            solver=cp.SCS, gp=True)
+            solver=cp.SCS, gp=True, solver_opts={'use_quad_obj': False})
         compiler = data[cp.settings.PARAM_PROB]
         dgp2dcp = solving_chain.get(cp.reductions.Dgp2Dcp)
         param_ids = [p.id for p in compiler.parameters]
@@ -73,7 +73,8 @@ def CvxpyLayer(problem, parameters, variables, gp=False):
             dgp2dcp.canon_methods._parameters
         )
     else:
-        data, _, _ = problem.get_problem_data(solver=cp.SCS)
+        data, _, _ = problem.get_problem_data(
+                solver=cp.SCS, solver_opts={'use_quad_obj': False})
         compiler = data[cp.settings.PARAM_PROB]
         param_ids = [p.id for p in param_order]
         dgp2dcp = None
