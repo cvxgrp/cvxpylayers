@@ -7,7 +7,7 @@ with open("README.md", "r") as fh:
 
 setup(
     name="cvxpylayers",
-    version="0.1.6",
+    version="0.1.7",
     description="Differentiable convex optimization layers",
     long_description=long_description,
     long_description_content_type="text/markdown",
