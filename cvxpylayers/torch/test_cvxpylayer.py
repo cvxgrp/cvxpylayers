@@ -88,7 +88,7 @@ class TestCvxpyLayer(unittest.TestCase):
         def lstsq(
             A,
             b): return torch.linalg.solve(
-            A.t() @ A + torch.eye(n).double(),
+            A.t() @ A + torch.eye(n, dtype=torch.float64),
                 (A.t() @ b).unsqueeze(1))
         x_lstsq = lstsq(A_th, b_th)
 
