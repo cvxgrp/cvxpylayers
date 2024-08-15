@@ -293,7 +293,7 @@ def _CvxpyLayerFn(
                             As, bs, cs, cone_dicts, **solver_args)
                     )
                 else:
-                    xs, _, _ = diffcp.cone_program.solve_only_batch(
+                    xs, _, _ = diffcp.solve_only_batch(
                         As, bs, cs, cone_dicts, **solver_args)
             except diffcp.SolverError as e:
                 print(
