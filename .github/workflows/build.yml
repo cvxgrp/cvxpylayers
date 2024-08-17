@@ -1,0 +1,65 @@
+name: build
+
+on:
+  pull_request:
+  push:
+    branches:
+      - main
+    tags:
+      - '*'
+
+jobs:
+
+  pre-commit:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Set up Python 3.8
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.8'
+      - name: Install pre-commit
+        run: |
+          pip install pre-commit
+      - name: Setup pre-commit hooks
+        run: |
+          pre-commit install
+      - name: Run pre-commit hooks
+        run: |
+          pre-commit run --all-files
+
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/setup-python@v5
+        with:
+          python-version: |
+            3.11
+            3.10
+            3.9
+            3.8
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0  # For sonar
+      - name: Install dependencies
+        run: pip install tox
+      - name: Run tests
+        run: tox
+
+      - name: SonarCloud Scan
+        uses: SonarSource/sonarcloud-github-action@master
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}  # Needed to get PR information, if any
+          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+
+      - name: build
+        if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags')
+        run: |
+          pip install --upgrade build
+          python -m build
+
+      - name: publish
+        if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags')
+        uses: pypa/gh-action-pypi-publish@release/v1
+        with:
+          password: ${{ secrets.PYPI_API_TOKEN }}
