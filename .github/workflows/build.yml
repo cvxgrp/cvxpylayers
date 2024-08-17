@@ -21,7 +21,7 @@ jobs:
             3.9
       - uses: actions/checkout@v4
       - name: Install dependencies
-        run: pip install cvxpy diffcp pytest torch jax tensorflow
+        run: pip install cvxpy diffcp pytest torch[cpu] jax tensorflow-cpu
       - name: Run tests
         run: pytest
 
