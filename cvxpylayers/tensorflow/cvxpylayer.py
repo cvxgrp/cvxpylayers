@@ -92,7 +92,7 @@ class CvxpyLayer(object):
                 problem.get_problem_data(
                     solver=cp.SCS, gp=True,
                     solver_opts={'use_quad_obj': False}
-            )
+            ))
             self.asa_maps = data[cp.settings.PARAM_PROB]
             self.dgp2dcp = solving_chain.get(cp.reductions.Dgp2Dcp)
             self.param_ids = [p.id for p in self.asa_maps.parameters]
