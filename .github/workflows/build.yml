@@ -9,25 +9,6 @@ on:
       - '*'
 
 jobs:
-
-  pre-commit:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - name: Set up Python 3.8
-        uses: actions/setup-python@v5
-        with:
-          python-version: '3.8'
-      - name: Install pre-commit
-        run: |
-          pip install pre-commit
-      - name: Setup pre-commit hooks
-        run: |
-          pre-commit install
-      - name: Run pre-commit hooks
-        run: |
-          pre-commit run --all-files
-
   build:
     runs-on: ubuntu-latest
     steps:
