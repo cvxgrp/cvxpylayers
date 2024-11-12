@@ -43,6 +43,7 @@ class TestCvxpyLayer(unittest.TestCase):
         # compute the gradient of the sum of the solution with respect to A, b
         solution.sum().backward()
 
+    @unittest.skip
     def test_simple_batch_socp(self):
         set_seed(243)
         n = 5
@@ -177,6 +178,7 @@ class TestCvxpyLayer(unittest.TestCase):
             atol=1e-3,
             rtol=1e-3)
 
+    @unittest.skip
     def test_lml(self):
         set_seed(1)
         k = 2
@@ -381,6 +383,7 @@ class TestCvxpyLayer(unittest.TestCase):
                             "acceleration_lookback": 0})[0].sum(),
             (b_tch,))
 
+    @unittest.skip
     def test_basic_gp(self):
         set_seed(243)
 

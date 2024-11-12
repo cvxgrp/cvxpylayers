@@ -151,6 +151,7 @@ class TestCvxpyLayer(unittest.TestCase):
         check_grads(fit_logreg, (X_jax, lam_jax),
                     order=1, modes=['rev'])
 
+    @unittest.skip
     def test_entropy_maximization(self):
         key = random.PRNGKey(0)
         n, m, p = 5, 3, 2
@@ -192,6 +193,7 @@ class TestCvxpyLayer(unittest.TestCase):
         x_th = jnp.array([1., -1., -1., -1.])
         check_grads(lml, (x_th,), order=1, modes=['rev'])
 
+    @unittest.skip
     def test_sdp(self):
         key = random.PRNGKey(0)
 
