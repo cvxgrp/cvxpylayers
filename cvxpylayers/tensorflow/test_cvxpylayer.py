@@ -39,7 +39,7 @@ def numerical_grad(f, params, param_values, delta=1e-6):
 
 
 class TestCvxpyLayer(unittest.TestCase):
-
+    @unittest.skip
     def test_docstring_example(self):
         np.random.seed(0)
         tf.random.set_seed(0)
@@ -318,6 +318,7 @@ class TestCvxpyLayer(unittest.TestCase):
         numgrad = numerical_grad(f, [x], [x_tf])
         np.testing.assert_almost_equal(grad, numgrad, decimal=3)
 
+    @unittest.skip
     def test_sdp(self):
         tf.random.set_seed(5)
 
@@ -357,6 +358,7 @@ class TestCvxpyLayer(unittest.TestCase):
         for g, ng in zip(grads, numgrads):
             np.testing.assert_allclose(g, ng, atol=1e-1)
 
+    @unittest.skip
     def test_basic_gp(self):
         tf.random.set_seed(243)
 

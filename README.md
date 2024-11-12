@@ -145,6 +145,7 @@ gradA, gradb = tape.gradient(summed_solution, [A_tf, b_tf])
 
 Note: `CvxpyLayer` cannot be traced with `tf.function`.
 
+
 ### Log-log convex programs
 Starting with version 0.1.3, cvxpylayers can also differentiate through log-log convex programs (LLCPs), which generalize geometric programs. Use the keyword argument `gp=True` when constructing a `CvxpyLayer` for an LLCP. Below is a simple usage example
 
@@ -180,8 +181,9 @@ sum_of_solution.backward()
 
 ## Solvers
 
-At this time, we support two open-source solvers: [SCS](https://github.com/cvxgrp/scs) and [ECOS](https://github.com/embotech/ecos).
-SCS can be used to solve any problem expressible in CVXPY; ECOS can be used to solve problems that don't use
+At this time, we support three open-source solvers: [Clarabel](https://github.com/oxfordcontrol/Clarabel.rs),
+[SCS](https://github.com/cvxgrp/scs), and [ECOS](https://github.com/embotech/ecos).
+Clarabel and SCS can be used to solve any problem expressible in CVXPY; ECOS can be used to solve problems that don't use
 the positive semidefinite or exponential cone (this roughly means that if you have positive semidefinite matrices
 or use atoms like `cp.log`, ECOS cannot be used to solve your problem via `cvxpylayers`).
 By default, `cvxpylayers` uses SCS to solve the problem.

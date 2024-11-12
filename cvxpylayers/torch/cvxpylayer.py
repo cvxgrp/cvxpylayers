@@ -283,11 +283,18 @@ def _CvxpyLayerFn(
                 ctx.shapes.append(A.shape)
             info['canon_time'] = time.time() - start
 
-            # compute solution and derivative function
+            # compute solution (always)
+            # and derivative function (if needed for reverse mode)
             start = time.time()
             try:
-                xs, _, _, _, ctx.DT_batch = diffcp.solve_and_derivative_batch(
-                    As, bs, cs, cone_dicts, **solver_args)
+                if any(p.requires_grad for p in params):
+                    xs, _, _, _, ctx.DT_batch = (
+                        diffcp.solve_and_derivative_batch(
+                            As, bs, cs, cone_dicts, **solver_args)
+                    )
+                else:
+                    xs, _, _ = diffcp.solve_only_batch(
+                        As, bs, cs, cone_dicts, **solver_args)
             except diffcp.SolverError as e:
                 print(
                     "Please consider re-formulating your problem so that "
