@@ -7,6 +7,7 @@ import torch
 from torch.autograd import grad
 
 from cvxpylayers.torch import CvxpyLayer
+from cvxpylayers.utils import forward_numpy, backward_numpy
 import diffcp
 
 torch.set_default_dtype(torch.double)
@@ -80,6 +81,43 @@ class TestCvxpyLayer(unittest.TestCase):
         obj = cp.sum_squares(A@x - b) + cp.sum_squares(x)
         prob = cp.Problem(cp.Minimize(obj))
         prob_th = CvxpyLayer(prob, [A, b], [x])
+
+        A_th = torch.randn(m, n).double().requires_grad_()
+        b_th = torch.randn(m).double().requires_grad_()
+
+        x = prob_th(A_th, b_th, solver_args={"eps": 1e-10})[0]
+
+        def lstsq(
+            A,
+            b): return torch.linalg.solve(
+            A.t() @ A + torch.eye(n, dtype=torch.float64),
+                (A.t() @ b).unsqueeze(1))
+        x_lstsq = lstsq(A_th, b_th)
+
+        grad_A_cvxpy, grad_b_cvxpy = grad(x.sum(), [A_th, b_th])
+        grad_A_lstsq, grad_b_lstsq = grad(x_lstsq.sum(), [A_th, b_th])
+
+        self.assertAlmostEqual(
+            torch.norm(
+                grad_A_cvxpy -
+                grad_A_lstsq).item(),
+            0.0)
+        self.assertAlmostEqual(
+            torch.norm(
+                grad_b_cvxpy -
+                grad_b_lstsq).item(),
+            0.0)
+        
+    def test_least_squares_custom_method(self):
+        set_seed(243)
+        m, n = 100, 20
+
+        A = cp.Parameter((m, n))
+        b = cp.Parameter(m)
+        x = cp.Variable(n)
+        obj = cp.sum_squares(A@x - b) + cp.sum_squares(x)
+        prob = cp.Problem(cp.Minimize(obj))
+        prob_th = CvxpyLayer(prob, [A, b], [x], custom_method=(forward_numpy, backward_numpy))
 
         A_th = torch.randn(m, n).double().requires_grad_()
         b_th = torch.randn(m).double().requires_grad_()
