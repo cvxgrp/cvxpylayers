@@ -4,6 +4,8 @@ import cvxpy as cp
 from cvxpy.reductions.solvers.conic_solvers.scs_conif import \
     dims_to_solver_dict
 import numpy as np
+from cvxpylayers.utils import \
+    ForwardContext, BackwardContext, forward_numpy, backward_numpy
 
 try:
     import torch
@@ -252,130 +254,60 @@ def _CvxpyLayerFn(
                 ctx.old_params_to_new_params = (
                     dgp2dcp.canon_methods._parameters
                 )
-                param_map = {}
-                # construct a list of params for the DCP problem
-                for param, value in zip(param_order, params):
-                    if param in ctx.old_params_to_new_params:
-                        new_id = ctx.old_params_to_new_params[param].id
-                        param_map[new_id] = torch.log(value)
-                    else:
-                        new_id = param.id
-                        param_map[new_id] = value
-                params_numpy = [to_numpy(param_map[pid]) for pid in param_ids]
-            else:
-                params_numpy = [to_numpy(p) for p in params]
-
-            # canonicalize problem
-            start = time.time()
-            As, bs, cs, cone_dicts, ctx.shapes = [], [], [], [], []
-            for i in range(ctx.batch_size):
-                params_numpy_i = [
-                    p if sz == 0 else p[i]
-                    for p, sz in zip(params_numpy, ctx.batch_sizes)]
-                c, _, neg_A, b = compiler.apply_parameters(
-                    dict(zip(param_ids, params_numpy_i)),
-                    keep_zeros=True)
-                A = -neg_A  # cvxpy canonicalizes -A
-                As.append(A)
-                bs.append(b)
-                cs.append(c)
-                cone_dicts.append(cone_dims)
-                ctx.shapes.append(A.shape)
-            info['canon_time'] = time.time() - start
-
-            # compute solution (always)
-            # and derivative function (if needed for reverse mode)
-            start = time.time()
-            try:
-                if any(p.requires_grad for p in params):
-                    xs, _, _, _, ctx.DT_batch = (
-                        diffcp.solve_and_derivative_batch(
-                            As, bs, cs, cone_dicts, **solver_args)
-                    )
-                else:
-                    xs, _, _ = diffcp.solve_only_batch(
-                        As, bs, cs, cone_dicts, **solver_args)
-            except diffcp.SolverError as e:
-                print(
-                    "Please consider re-formulating your problem so that "
-                    "it is always solvable or increasing the number of "
-                    "solver iterations.")
-                raise e
-            info['solve_time'] = time.time() - start
-
-            # extract solutions and append along batch dimension
-            sol = [[] for _ in range(len(variables))]
-            for i in range(ctx.batch_size):
-                sltn_dict = compiler.split_solution(
-                    xs[i], active_vars=var_dict)
-                for j, v in enumerate(variables):
-                    sol[j].append(to_torch(
-                        sltn_dict[v.id], ctx.dtype, ctx.device).unsqueeze(0))
-            sol = [torch.cat(s, 0) for s in sol]
-
-            if not ctx.batch:
-                sol = [s.squeeze(0) for s in sol]
-
-            if gp:
-                sol = [torch.exp(s) for s in sol]
-                ctx.sol = sol
+            
+            # convert to numpy arrays
+            params_numpy = [to_numpy(p) for p in params]
+            
+            context = ForwardContext(
+                gp=gp,
+                solve_and_derivative=any(p.requires_grad for p in params),
+                batch=ctx.batch,
+                batch_size=ctx.batch_size,
+                batch_sizes=ctx.batch_sizes,
+                compiler=compiler,
+                param_ids=param_ids,
+                param_order=param_order,
+                old_params_to_new_params=ctx.old_params_to_new_params if gp else None,
+                cone_dims=cone_dims,
+                solver_args=solver_args,
+                variables=variables,
+                var_dict=var_dict,
+            )
+            
+            sol, info_forward = forward_numpy(params_numpy, context)
+            
+            # convert to torch tensors and incorporate info_forward
+            sol = [to_torch(s, ctx.dtype, ctx.device) for s in sol]
+            info.update(info_forward)
 
             return tuple(sol)
 
         @staticmethod
         def backward(ctx, *dvars):
-            if gp:
-                # derivative of exponential recovery transformation
-                dvars = [dvar*s for dvar, s in zip(dvars, ctx.sol)]
-
+            
+            # convert to numpy arrays
             dvars_numpy = [to_numpy(dvar) for dvar in dvars]
+                
+            context = BackwardContext(
+                info=info,
+                gp=gp,
+                batch=ctx.batch,
+                batch_size=ctx.batch_size,
+                batch_sizes=ctx.batch_sizes,
+                variables=variables,
+                compiler=compiler,
+                param_ids=param_ids,
+                param_order=param_order if gp else None,
+                params=ctx.params if gp else None,
+                old_params_to_new_params=ctx.old_params_to_new_params if gp else None,
+                sol=info['sol'] if gp else None,
+            )
 
-            if not ctx.batch:
-                dvars_numpy = [np.expand_dims(dvar, 0) for dvar in dvars_numpy]
-
-            # differentiate from cvxpy variables to cone problem data
-            dxs, dys, dss = [], [], []
-            for i in range(ctx.batch_size):
-                del_vars = {}
-                for v, dv in zip(variables, [dv[i] for dv in dvars_numpy]):
-                    del_vars[v.id] = dv
-                dxs.append(compiler.split_adjoint(del_vars))
-                dys.append(np.zeros(ctx.shapes[i][0]))
-                dss.append(np.zeros(ctx.shapes[i][0]))
-
-            dAs, dbs, dcs = ctx.DT_batch(dxs, dys, dss)
-
-            # differentiate from cone problem data to cvxpy parameters
-            start = time.time()
-            grad = [[] for _ in range(len(param_ids))]
-            for i in range(ctx.batch_size):
-                del_param_dict = compiler.apply_param_jac(
-                    dcs[i], -dAs[i], dbs[i])
-                for j, pid in enumerate(param_ids):
-                    grad[j] += [to_torch(del_param_dict[pid],
-                                         ctx.dtype, ctx.device).unsqueeze(0)]
-            grad = [torch.cat(g, 0) for g in grad]
-
-            if gp:
-                # differentiate through the log transformation of params
-                dcp_grad = grad
-                grad = []
-                dparams = {pid: g for pid, g in zip(param_ids, dcp_grad)}
-                for param, value in zip(param_order, ctx.params):
-                    g = 0.0 if param.id not in dparams else dparams[param.id]
-                    if param in ctx.old_params_to_new_params:
-                        dcp_param_id = ctx.old_params_to_new_params[param].id
-                        # new_param.value == log(param), apply chain rule
-                        g += (1.0 / value) * dparams[dcp_param_id]
-                    grad.append(g)
-            info['dcanon_time'] = time.time() - start
-
-            if not ctx.batch:
-                grad = [g.squeeze(0) for g in grad]
-            else:
-                for i, sz in enumerate(ctx.batch_sizes):
-                    if sz == 0:
-                        grad[i] = grad[i].sum(dim=0)
+            grad_numpy, info_backward = backward_numpy(dvars_numpy, context)
+            
+            # convert to torch tensors and incorporate info_backward
+            grad = [to_torch(g, ctx.dtype, ctx.device) for g in grad_numpy]
+            info.update(info_backward)
 
             return tuple(grad)
 

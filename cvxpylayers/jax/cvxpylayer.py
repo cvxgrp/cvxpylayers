@@ -5,6 +5,8 @@ from cvxpy.reductions.solvers.conic_solvers.scs_conif import \
 import numpy as np
 import time
 from functools import partial
+from cvxpylayers.utils import \
+    ForwardContext, BackwardContext, forward_numpy, backward_numpy
 
 try:
     import jax
@@ -111,69 +113,30 @@ def CvxpyLayer(problem, parameters, variables, gp=False):
         dtype, batch, batch_sizes, batch_size = batch_info(
             params, param_order)
 
-        if gp:
-            param_map = {}
-            # construct a list of params for the DCP problem
-            for param, value in zip(param_order, params):
-                if param in old_params_to_new_params:
-                    new_id = old_params_to_new_params[param].id
-                    param_map[new_id] = jnp.log(value)
-                else:
-                    new_id = param.id
-                    param_map[new_id] = value
-            params_numpy = [np.array(param_map[pid]) for pid in param_ids]
-        else:
-            params_numpy = [np.array(p) for p in params]
+        # convert to numpy arrays
+        params_numpy = [np.array(param) for param in params]
+            
+        context = ForwardContext(
+            gp=gp,
+            solve_and_derivative=True,
+            batch=batch,
+            batch_size=batch_size,
+            batch_sizes=batch_sizes,
+            compiler=compiler,
+            param_ids=param_ids,
+            param_order=param_order if gp else None,
+            old_params_to_new_params=old_params_to_new_params if gp else None,
+            cone_dims=cone_dims,
+            solver_args=solver_args,
+            variables=variables,
+            var_dict=var_dict
+        )
 
-        # canonicalize problem
-        start = time.time()
-        As, bs, cs, cone_dicts, shapes = [], [], [], [], []
-        for i in range(batch_size):
-            params_numpy_i = [
-                p if sz == 0 else p[i]
-                for p, sz in zip(params_numpy, batch_sizes)]
-            c, _, neg_A, b = compiler.apply_parameters(
-                dict(zip(param_ids, params_numpy_i)),
-                keep_zeros=True)
-            A = -neg_A  # cvxpy canonicalizes -A
-            As.append(A)
-            bs.append(b)
-            cs.append(c)
-            cone_dicts.append(cone_dims)
-            shapes.append(A.shape)
-        info['canon_time'] = time.time() - start
-        info['shapes'] = shapes
-
-        # compute solution and derivative function
-        start = time.time()
-        try:
-            xs, _, _, _, DT_batch = diffcp.solve_and_derivative_batch(
-                As, bs, cs, cone_dicts, **solver_args)
-            info['DT_batch'] = DT_batch
-        except diffcp.SolverError as e:
-            print(
-                "Please consider re-formulating your problem so that "
-                "it is always solvable or increasing the number of "
-                "solver iterations.")
-            raise e
-        info['solve_time'] = time.time() - start
-
-        # extract solutions and append along batch dimension
-        start = time.time()
-        sol = [[] for i in range(len(variables))]
-        for i in range(batch_size):
-            sltn_dict = compiler.split_solution(
-                xs[i], active_vars=var_dict)
-            for j, v in enumerate(variables):
-                sol[j].append(jnp.expand_dims(jnp.array(
-                    sltn_dict[v.id], dtype=dtype), axis=0))
-        sol = [jnp.concatenate(s, axis=0) for s in sol]
-
-        if not batch:
-            sol = [jnp.squeeze(s, axis=0) for s in sol]
-
-        if gp:
-            sol = [jnp.exp(s) for s in sol]
+        sol, info_forward = forward_numpy(params_numpy, context)
+        
+        # convert to jax arrays and store info
+        sol = [jnp.array(s, dtype=dtype) for s in sol]
+        info.update(info_forward)
 
         return tuple(sol)
 
@@ -192,60 +155,30 @@ def CvxpyLayer(problem, parameters, variables, gp=False):
         # the residual in JAX's vjp doesn't allow non-JAX types to be
         # easily returned. This works when calling this serially,
         # but will break if this is called in parallel.
-        shapes = info['shapes']
-        DT_batch = info['DT_batch']
 
-        if gp:
-            # derivative of exponential recovery transformation
-            dvars = [dvar*s for dvar, s in zip(dvars, sol)]
-
+        # convert to numpy arrays
         dvars_numpy = [np.array(dvar) for dvar in dvars]
-
-        if not batch:
-            dvars_numpy = [np.expand_dims(dvar, 0) for dvar in dvars_numpy]
-
-        # differentiate from cvxpy variables to cone problem data
-        dxs, dys, dss = [], [], []
-        for i in range(batch_size):
-            del_vars = {}
-            for v, dv in zip(variables, [dv[i] for dv in dvars_numpy]):
-                del_vars[v.id] = dv
-            dxs.append(compiler.split_adjoint(del_vars))
-            dys.append(np.zeros(shapes[i][0]))
-            dss.append(np.zeros(shapes[i][0]))
-
-        dAs, dbs, dcs = DT_batch(dxs, dys, dss)
-
-        # differentiate from cone problem data to cvxpy parameters
-        start = time.time()
-        grad = [[] for _ in range(len(param_ids))]
-        for i in range(batch_size):
-            del_param_dict = compiler.apply_param_jac(
-                dcs[i], -dAs[i], dbs[i])
-            for j, pid in enumerate(param_ids):
-                grad[j] += [jnp.expand_dims(jnp.array(
-                    del_param_dict[pid], dtype=dtype), axis=0)]
-        grad = [jnp.concatenate(g, axis=0) for g in grad]
-        if gp:
-            # differentiate through the log transformation of params
-            dcp_grad = grad
-            grad = []
-            dparams = {pid: g for pid, g in zip(param_ids, dcp_grad)}
-            for param, value in zip(param_order, params):
-                v = 0.0 if param.id not in dparams else dparams[param.id]
-                if param in old_params_to_new_params:
-                    dcp_param_id = old_params_to_new_params[param].id
-                    # new_param.value == log(param), apply chain rule
-                    v += (1.0 / value) * dparams[dcp_param_id]
-                grad.append(v)
-        info['dcanon_time'] = time.time() - start
-
-        if not batch:
-            grad = [jnp.squeeze(g, axis=0) for g in grad]
-        else:
-            for i, sz in enumerate(batch_sizes):
-                if sz == 0:
-                    grad[i] = jnp.sum(grad[i], axis=0)
+            
+        context = BackwardContext(
+            info=info,
+            gp=gp,
+            batch=batch,
+            batch_size=batch_size,
+            batch_sizes=batch_sizes,
+            variables=variables,
+            compiler=compiler,
+            param_ids=param_ids,
+            param_order=param_order if gp else None,
+            params=params if gp else None,
+            old_params_to_new_params=old_params_to_new_params if gp else None,
+            sol=[np.array(s) for s in sol] if gp else None,
+        )
+            
+        grad_numpy, info_backward = backward_numpy(dvars_numpy, context)
+        
+        # convert to jax arrays and store info
+        grad = [jnp.array(g, dtype=dtype) for g in grad_numpy]
+        info.update(info_backward)
 
         return tuple(grad)
 
