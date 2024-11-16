@@ -56,7 +56,7 @@ class CvxpyLayer(torch.nn.Module):
         ```
     """
 
-    def __init__(self, problem, parameters, variables, gp=False):
+    def __init__(self, problem, parameters, variables, gp=False, custom_method=None):
         """Construct a CvxpyLayer
 
         Args:
@@ -69,8 +69,15 @@ class CvxpyLayer(torch.nn.Module):
                      Variables determines the order of the optimal variable
                      values returned from the forward pass.
           gp: Whether to parse the problem using DGP (True or False).
+          custom_method: A tuple of two custom methods for the forward and
+                      backward pass.
         """
         super(CvxpyLayer, self).__init__()
+        
+        if custom_method is None:
+            self._forward_numpy, self._backward_numpy = forward_numpy, backward_numpy
+        else:
+            self._forward_numpy, self._backward_numpy = custom_method
 
         self.gp = gp
         if self.gp:
@@ -141,6 +148,8 @@ class CvxpyLayer(torch.nn.Module):
                                  len(params), len(self.param_ids)))
         info = {}
         f = _CvxpyLayerFn(
+            _forward_numpy=self._forward_numpy,
+            _backward_numpy=self._backward_numpy,
             param_order=self.param_order,
             param_ids=self.param_ids,
             variables=self.variables,
@@ -168,6 +177,8 @@ def to_torch(x, dtype, device):
 
 
 def _CvxpyLayerFn(
+        _forward_numpy,
+        _backward_numpy,
         param_order,
         param_ids,
         variables,
@@ -274,7 +285,7 @@ def _CvxpyLayerFn(
                 var_dict=var_dict,
             )
             
-            sol, info_forward = forward_numpy(params_numpy, context)
+            sol, info_forward = _forward_numpy(params_numpy, context)
             
             # convert to torch tensors and incorporate info_forward
             sol = [to_torch(s, ctx.dtype, ctx.device) for s in sol]
@@ -303,7 +314,7 @@ def _CvxpyLayerFn(
                 sol=info['sol'] if gp else None,
             )
 
-            grad_numpy, info_backward = backward_numpy(dvars_numpy, context)
+            grad_numpy, info_backward = _backward_numpy(dvars_numpy, context)
             
             # convert to torch tensors and incorporate info_backward
             grad = [to_torch(g, ctx.dtype, ctx.device) for g in grad_numpy]

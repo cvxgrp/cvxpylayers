@@ -17,7 +17,7 @@ from jax import core
 import jax.numpy as jnp
 
 
-def CvxpyLayer(problem, parameters, variables, gp=False):
+def CvxpyLayer(problem, parameters, variables, gp=False, custom_method=None):
     """Construct a CvxpyLayer
 
     Args:
@@ -30,10 +30,17 @@ def CvxpyLayer(problem, parameters, variables, gp=False):
                    Variables determines the order of the optimal variable
                    values returned from the forward pass.
         gp: Whether to parse the problem using DGP (True or False).
+        custom_method: A tuple of two custom methods for the forward and
+                    backward pass.
 
     Returns:
         A callable that solves the problem.
     """
+    
+    if custom_method is None:
+        _forward_numpy, _backward_numpy = forward_numpy, backward_numpy
+    else:
+        _forward_numpy, _backward_numpy = custom_method
 
     if gp:
         if not problem.is_dgp(dpp=True):
@@ -132,7 +139,7 @@ def CvxpyLayer(problem, parameters, variables, gp=False):
             var_dict=var_dict
         )
 
-        sol, info_forward = forward_numpy(params_numpy, context)
+        sol, info_forward = _forward_numpy(params_numpy, context)
         
         # convert to jax arrays and store info
         sol = [jnp.array(s, dtype=dtype) for s in sol]
@@ -174,7 +181,7 @@ def CvxpyLayer(problem, parameters, variables, gp=False):
             sol=[np.array(s) for s in sol] if gp else None,
         )
             
-        grad_numpy, info_backward = backward_numpy(dvars_numpy, context)
+        grad_numpy, info_backward = _backward_numpy(dvars_numpy, context)
         
         # convert to jax arrays and store info
         grad = [jnp.array(g, dtype=dtype) for g in grad_numpy]
